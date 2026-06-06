@@ -327,7 +327,7 @@
     </div>
 </div>
 
- <script>
+<script>
     let currentMetrics = { ctl: '--', atl: '--', tsb: '--' };
     let chatHistory = [];
 
@@ -336,34 +336,27 @@
         if(localStorage.getItem('intervalsKey')) document.getElementById('intervals-key').value = localStorage.getItem('intervalsKey');
         if(localStorage.getItem('geminiKey')) document.getElementById('gemini-key').value = localStorage.getItem('geminiKey');
         
-        const hoje = new Date().toISOString().split('T')[0];
-        document.getElementById('workout-date').value = hoje;
+        document.getElementById('workout-date').value = new Date().toISOString().split('T')[0];
 
         if(localStorage.getItem('coachChatHistory')) {
             try {
                 chatHistory = JSON.parse(localStorage.getItem('coachChatHistory'));
                 document.getElementById('chat-box').innerHTML = '';
-                
                 chatHistory.forEach(msg => {
-                    const sender = msg.role === 'user' ? 'user' : 'coach';
-                    appendMessage(sender, msg.parts[0].text);
+                    appendMessage(msg.role === 'user' ? 'user' : 'coach', msg.parts[0].text);
                 });
             } catch (e) {
-                console.error("Erro ao carregar histórico do cache:", e);
                 chatHistory = [];
             }
         }
-
-        if(localStorage.getItem('athleteId') && localStorage.getItem('intervalsKey')) {
-            fetchIntervalsData();
-        }
+        if(localStorage.getItem('athleteId') && localStorage.getItem('intervalsKey')) fetchIntervalsData();
     };
 
     function saveSettings() {
         localStorage.setItem('athleteId', document.getElementById('athlete-id').value.trim());
         localStorage.setItem('intervalsKey', document.getElementById('intervals-key').value.trim());
         localStorage.setItem('geminiKey', document.getElementById('gemini-key').value.trim());
-        showStatus('Configurações salvas com sucesso!', 'var(--success-color)');
+        showStatus('Configurações salvas!', 'var(--success-color)');
     }
 
     function showStatus(text, color) {
@@ -372,75 +365,45 @@
         el.style.color = color || 'var(--text-muted)';
     }
 
+    function clearChat() {
+        chatHistory = [];
+        localStorage.removeItem('coachChatHistory');
+        document.getElementById('chat-box').innerHTML = '<div class="message coach">Histórico limpo! Qual o foco de hoje?</div>';
+    }
+
     async function fetchIntervalsData() {
         const athleteId = localStorage.getItem('athleteId');
         const intervalsKey = localStorage.getItem('intervalsKey');
+        if (!athleteId || !intervalsKey) return;
 
-        if (!athleteId || !intervalsKey) {
-            showStatus('Por favor, configure as chaves primeiro.', '#ff3b30');
-            return;
-        }
-
-        showStatus('Buscando dados do Intervals.icu...', 'var(--accent-color)');
-        const authString = btoa(`API_KEY:${intervalsKey}`);
-        
+        showStatus('Sincronizando Intervals.icu...', 'var(--accent-color)');
         try {
             const response = await fetch(`https://intervals.icu/api/v1/athlete/${athleteId}/wellness`, {
                 method: 'GET',
-                headers: { 'Authorization': `Basic ${authString}` }
+                headers: { 'Authorization': `Basic ${btoa(`API_KEY:${intervalsKey}`)}` }
             });
-
-            if (!response.ok) throw new Error('Falha na autenticação ou erro na API.');
-
+            if (!response.ok) throw new Error('Erro na autenticação.');
             const data = await response.json();
             
             if (data && data.length > 0) {
-                let encontrado = false;
-
-                for (let i = data.length - 1; i >= 0; i--) {
-                    const dia = data[i];
-                    const ctlVal = dia.ctl !== undefined ? dia.ctl : dia.ctlLoad;
-                    const atlVal = dia.atl !== undefined ? dia.atl : dia.atlLoad;
-
-                    if (ctlVal !== undefined && ctlVal > 0) {
-                        currentMetrics.ctl = Math.round(ctlVal);
-                        currentMetrics.atl = Math.round(atlVal !== undefined ? atlVal : 0);
-                        currentMetrics.tsb = currentMetrics.ctl - currentMetrics.atl;
-                        encontrado = true;
-                        break;
-                    }
-                }
-
-                if (!encontrado) {
-                    const ultimo = data[data.length - 1];
-                    currentMetrics.ctl = Math.round(ultimo.ctl || ultimo.ctlLoad || 0);
-                    currentMetrics.atl = Math.round(ultimo.atl || ultimo.atlLoad || 0);
-                    currentMetrics.tsb = currentMetrics.ctl - currentMetrics.atl;
-                }
+                const ultimo = data[data.length - 1];
+                currentMetrics.ctl = Math.round(ultimo.ctl || ultimo.ctlLoad || 0);
+                currentMetrics.atl = Math.round(ultimo.atl || ultimo.atlLoad || 0);
+                currentMetrics.tsb = currentMetrics.ctl - currentMetrics.atl;
 
                 document.getElementById('metric-ctl').innerText = currentMetrics.ctl;
                 document.getElementById('metric-atl').innerText = currentMetrics.atl;
-                document.getElementById('metric-tsb').innerText = currentMetrics.tsb;
-                
                 const tsbEl = document.getElementById('metric-tsb');
-                if (currentMetrics.tsb > 5) {
-                    tsbEl.style.color = 'var(--success-color)';
-                } else if (currentMetrics.tsb < -20) {
-                    tsbEl.style.color = 'var(--danger-color)';
-                } else {
-                    tsbEl.style.color = '#00c7ff';
-                }
+                tsbEl.innerText = currentMetrics.tsb;
+                tsbEl.style.color = currentMetrics.tsb > 5 ? 'var(--success-color)' : currentMetrics.tsb < -20 ? 'var(--danger-color)' : '#00c7ff';
                 
-                showStatus('Dados atualizados com sucesso!', 'var(--success-color)');
-                
+                showStatus('Métricas atualizadas!', 'var(--success-color)');
                 if (chatHistory.length === 0) {
-                    appendMessage('coach', `Métricas sincronizadas! Seu Fitness (CTL) está em ${currentMetrics.ctl}, Fadiga (ATL) em ${currentMetrics.atl} e Forma (TSB) em ${currentMetrics.tsb}. Qual é o nosso foco para o treino de hoje?`);
+                    appendMessage('coach', `Métricas alinhadas! CTL: ${currentMetrics.ctl} | ATL: ${currentMetrics.atl} | TSB: ${currentMetrics.tsb}. O que vamos treinar hoje?`);
                 }
-            } else {
-                throw new Error('Nenhum dado encontrado.');
             }
         } catch (error) {
-            showStatus(`Erro: ${error.message}`, '#ff3b30');
+            showStatus('Falha ao buscar métricas.', '#ff3b30');
         }
     }
 
@@ -454,116 +417,86 @@
     }
 
     async function sendMessage() {
-    const inputEl = document.getElementById('user-input');
-    const userText = inputEl.value.trim();
-    const geminiKey = localStorage.getItem('geminiKey');
+        const inputEl = document.getElementById('user-input');
+        const userText = inputEl.value.trim();
+        const geminiKey = localStorage.getItem('geminiKey');
 
-    if (!userText) return;
-    if (!geminiKey) {
-        alert('Por favor, salve a sua Gemini API Key nas configurações.');
-        return;
-    }
+        if (!userText || !geminiKey) return;
 
-    appendMessage('user', userText);
-    inputEl.value = '';
+        appendMessage('user', userText);
+        inputEl.value = '';
 
-    chatHistory.push({
-        role: "user",
-        parts: [{ text: userText }]
-    });
+        chatHistory.push({ role: "user", parts: [{ text: userText }] });
 
-    const instructionsBlock = `[CONTEXTO INTERNO DO SEU SISTEMA DE COACHING - NÃO REPETIR ISSO NA RESPOSTA: Você é um treinador de triatlo de elite com IA, inteligente e adaptativo como o Humango. Seu atleta Pedro utiliza um Garmin Forerunner 255 para corrida/natação e treina ciclismo no MyWhoosh (gravando também pelo Garmin). 
-Métricas atuais do atleta baseadas no Intervals.icu: Fitness (CTL): ${currentMetrics.ctl}, Fadiga (ATL): ${currentMetrics.atl}, Forma (TSB): ${currentMetrics.tsb}.
-Regras de conduta: Dê feedbacks curtos, motivadores e focados em eficiência de endurance. Sempre que planejar um treino estruturado, sugira blocos claros de zonas (ex: Z2, Z4). Responda sempre em português do Brasil (pt-BR) de forma extremamente natural.]\n\nMensagem do Atleta: ${userText}`;
-
-    let apiContents = JSON.parse(JSON.stringify(chatHistory));
-    if (apiContents.length > 0) {
-        apiContents[apiContents.length - 1].parts[0].text = instructionsBlock;
-    }
-
-    try {
-        // Rota estável oficial (v1) combinado com o modelo correto (gemini-2.0-flash)
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=${geminiKey}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                contents: apiContents
-            })
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(data.error?.message || `Erro HTTP ${response.status}`);
+        // Janela deslizante: Mantém apenas o contexto essencial recente (Últimas 6 mensagens) para poupar cota
+        let apiContents = JSON.parse(JSON.stringify(chatHistory.slice(-6)));
+        
+        const instructionsBlock = `[CONTEXTO INTERNO DE COACHING: Você é um treinador de triatlo de elite com IA, estilo Humango. Atleta Pedro usa Garmin Forerunner 255 e MyWhoosh. Métricas do Intervals.icu: CTL: ${currentMetrics.ctl}, ATL: ${currentMetrics.atl}, TSB: ${currentMetrics.tsb}. Dê feedbacks curtos, diretos, motivadores e focados em endurance. Use zonas estruturadas (Z2, Z4, etc). Responda estritamente em pt-BR de forma natural.]\n\nMensagem do Atleta: ${userText}`;
+        
+        if (apiContents.length > 0) {
+            apiContents[apiContents.length - 1].parts[0].text = instructionsBlock;
         }
 
-        if (!data.candidates || data.candidates.length === 0) {
-            throw new Error('A API não retornou nenhuma resposta estruturada.');
+        // Feedback visual de carregamento na tela
+        appendMessage('coach', '⏳ Analisando suas métricas e preparando o feedback...');
+        const loadingDiv = document.getElementById('chat-box').lastChild;
+
+        try {
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=${geminiKey}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ contents: apiContents })
+            });
+
+            const data = await response.json();
+            loadingDiv.remove(); // Remove o indicador de carregamento
+
+            if (!response.ok) {
+                if (response.status === 429) throw new Error('Limite de requisições diárias atingido na Google API. Tente novamente mais tarde.');
+                throw new Error(data.error?.message || `Erro HTTP ${response.status}`);
+            }
+
+            const coachReply = data.candidates[0].content.parts[0].text;
+            appendMessage('coach', coachReply);
+
+            chatHistory.push({ role: "model", parts: [{ text: coachReply }] });
+            localStorage.setItem('coachChatHistory', JSON.stringify(chatHistory));
+
+        } catch (error) {
+            if (loadingDiv) loadingDiv.remove();
+            appendMessage('coach', `⚠️ Falha: ${error.message}`);
+            chatHistory.pop();
         }
-
-        const coachReply = data.candidates[0].content.parts[0].text;
-        appendMessage('coach', coachReply);
-
-        chatHistory.push({
-            role: "model",
-            parts: [{ text: coachReply }]
-        });
-
-        localStorage.setItem('coachChatHistory', JSON.stringify(chatHistory));
-
-    } catch (error) {
-        console.error(error);
-        appendMessage('coach', `⚠️ Falha na requisição: ${error.message}`);
-        chatHistory.pop();
     }
-}
 
     async function scheduleWorkout() {
         const athleteId = localStorage.getItem('athleteId');
         const intervalsKey = localStorage.getItem('intervalsKey');
-        
         const date = document.getElementById('workout-date').value;
         const type = document.getElementById('workout-type').value;
         const name = document.getElementById('workout-name').value.trim();
         const desc = document.getElementById('workout-desc').value.trim();
 
-        if (!athleteId || !intervalsKey) {
-            alert('Configure as credenciais primeiro.');
+        if (!athleteId || !intervalsKey || !name || !desc) {
+            alert('Preencha as configurações e os dados do treino.');
             return;
         }
-        if (!name || !desc) {
-            alert('Por favor, preencha o nome e a descrição do treino.');
-            return;
-        }
-
-        const authString = btoa(`API_KEY:${intervalsKey}`);
-        const workoutData = {
-            category: "WORKOUT",
-            type: type,
-            start_date_local: date + "T00:00:00",
-            name: name,
-            description: desc
-        };
 
         try {
             const response = await fetch(`https://intervals.icu/api/v1/athlete/${athleteId}/events`, {
                 method: 'POST',
-                headers: { 
-                    'Authorization': `Basic ${authString}`,
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(workoutData)
+                headers: { 'Authorization': `Basic ${btoa(`API_KEY:${intervalsKey}`)}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ category: "WORKOUT", type: type, start_date_local: date + "T00:00:00", name: name, description: desc })
             });
-
             if (response.ok) {
-                alert('Treino agendado com sucesso! Em instantes estará sincronizado no seu calendário Garmin.');
+                alert('Treino agendado! Em instantes estará no seu Garmin.');
                 document.getElementById('workout-name').value = '';
                 document.getElementById('workout-desc').value = '';
             } else {
-                throw new Error('Falha ao criar o evento no Intervals.icu.');
+                throw new Error('Erro ao criar evento.');
             }
         } catch (error) {
-            alert(`Erro ao agendar: ${error.message}`);
+            alert(`Erro: ${error.message}`);
         }
     }
 </script>
