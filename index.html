@@ -10,52 +10,30 @@
     <link rel="apple-touch-icon" href="https://images.unsplash.com/photo-1530541930197-ff16ac917b0e?w=180&h=180&fit=crop&q=80">
 
     <title>AI Triathlon Coach</title>
-  <style>
-    :root {
-        --bg-dark: #0f141c;
-        --card-bg: #1a222d;
-        --accent-blue: #00c7ff;
-        --success-color: #34c759;
-        --danger-color: #ff3b30;
-        --text-main: #f5f7fa;
-        --text-muted: #8e9aa8;
-    }
-
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; }
-    
-    body { background-color: var(--bg-dark); color: var(--text-main); padding: 15px; padding-bottom: 80px; }
-
-    /* Dashboard de Métricas */
-    .metrics-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
-    .metric-card { background: var(--card-bg); padding: 12px; border-radius: 12px; text-align: center; border: 1px solid #253140; }
-    .metric-card p { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
-    .metric-card h3 { font-size: 24px; margin-top: 5px; font-weight: 700; color: var(--text-main); }
-
-    /* Container do Chat */
-    .chat-container { background: var(--card-bg); border-radius: 16px; border: 1px solid #253140; display: flex; flex-direction: column; height: 350px; margin-bottom: 20px; overflow: hidden; }
-    .chat-header { background: #222d3a; padding: 12px 15px; font-size: 14px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #253140; }
-    .clear-btn { background: none; border: none; color: var(--danger-color); font-size: 12px; cursor: pointer; font-weight: bold; }
-    
-    .chat-box { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
-    
-    /* Balões de Mensagem */
-    .message { max-width: 85%; padding: 10px 14px; border-radius: 16px; font-size: 14px; line-height: 1.4; word-wrap: break-word; }
-    .message.user { background: var(--accent-blue); color: #000; align-self: flex-end; border-bottom-right-radius: 4px; font-weight: 500; }
-    .message.coach { background: #253140; color: var(--text-main); align-self: flex-start; border-bottom-left-radius: 4px; }
-    
-    /* Input de Texto */
-    .input-area { display: flex; gap: 8px; padding: 10px; background: #161e27; border-top: 1px solid #253140; }
-    .input-area input { flex: 1; background: #222d3a; border: 1px solid #253140; border-radius: 20px; padding: 10px 16px; color: #fff; font-size: 14px; outline: none; }
-    .input-area button { background: var(--accent-blue); border: none; width: 40px; height: 40px; border-radius: 50%; color: #000; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; }
-
-    /* Seção de Configurações Colapsável */
-    details { background: var(--card-bg); border-radius: 12px; border: 1px solid #253140; margin-bottom: 15px; }
-    summary { padding: 12px; font-size: 14px; font-weight: 600; cursor: pointer; color: var(--text-muted); }
-    .settings-content { padding: 15px; display: flex; flex-direction: column; gap: 10px; border-top: 1px solid #253140; }
-    .settings-content input { background: #121820; border: 1px solid #253140; padding: 10px; border-radius: 8px; color: #fff; font-size: 13px; }
-    .btn-save { background: var(--success-color); color: #000; border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; }
-    
-    #status-message { font-size: 12px; text-align: center; margin-top: 5px; }
+ <style>
+:root { --bg-dark: #0f141c; --card-bg: #1a222d; --accent-blue: #00c7ff; --success-color: #34c759; --danger-color: #ff3b30; --text-main: #f5f7fa; --text-muted: #8e9aa8; }
+* { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, sans-serif; }
+body { background: var(--bg-dark); color: var(--text-main); padding: 15px; padding-bottom: 80px; }
+.metrics-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
+.metric-card { background: var(--card-bg); padding: 12px; border-radius: 12px; text-align: center; border: 1px solid #253140; }
+.metric-card p { font-size: 11px; color: var(--text-muted); text-transform: uppercase; }
+.metric-card h3 { font-size: 24px; margin-top: 5px; font-weight: 700; }
+.chat-container { background: var(--card-bg); border-radius: 16px; border: 1px solid #253140; display: flex; flex-direction: column; height: 350px; margin-bottom: 20px; overflow: hidden; }
+.chat-header { background: #222d3a; padding: 12px 15px; font-size: 14px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #253140; }
+.clear-btn { background: none; border: none; color: var(--danger-color); font-size: 12px; cursor: pointer; font-weight: bold; }
+.chat-box { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+.message { max-width: 85%; padding: 10px 14px; border-radius: 16px; font-size: 14px; line-height: 1.4; word-wrap: break-word; }
+.message.user { background: var(--accent-blue); color: #000; align-self: flex-end; border-bottom-right-radius: 4px; font-weight: 500; }
+.message.coach { background: #253140; color: var(--text-main); align-self: flex-start; border-bottom-left-radius: 4px; }
+.input-area { display: flex; gap: 8px; padding: 10px; background: #161e27; border-top: 1px solid #253140; }
+.input-area input { flex: 1; background: #222d3a; border: 1px solid #253140; border-radius: 20px; padding: 10px 16px; color: #fff; font-size: 14px; outline: none; }
+.input-area button { background: var(--accent-blue); border: none; width: 40px; height: 40px; border-radius: 50%; color: #000; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+details { background: var(--card-bg); border-radius: 12px; border: 1px solid #253140; margin-bottom: 15px; }
+summary { padding: 12px; font-size: 14px; font-weight: 600; cursor: pointer; color: var(--text-muted); }
+.settings-content { padding: 15px; display: flex; flex-direction: column; gap: 10px; border-top: 1px solid #253140; }
+.settings-content input { background: #121820; border: 1px solid #253140; padding: 10px; border-radius: 8px; color: #fff; font-size: 13px; }
+.btn-save { background: var(--success-color); color: #000; border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+#status-message { font-size: 12px; text-align: center; margin-top: 5px; }
 </style>
 
 <div class="metrics-grid">
@@ -65,13 +43,8 @@
 </div>
 
 <div class="chat-container">
-    <div class="chat-header">
-        <span>🏃‍♂️ Coach de Endurance IA</span>
-        <button class="clear-btn" onclick="clearChat()">Limpar Chat</button>
-    </div>
-    <div class="chat-box" id="chat-box">
-        <div class="message coach">Métricas sincronizadas. Pronto para alinhar a planilha de treinos?</div>
-    </div>
+    <div class="chat-header"><span>🏃‍♂️ Coach de Endurance IA</span><button class="clear-btn" onclick="clearChat()">Limpar Chat</button></div>
+    <div class="chat-box" id="chat-box"><div class="message coach">Métricas sincronizadas. Pronto para alinhar a planilha de treinos?</div></div>
     <div class="input-area">
         <input type="text" id="user-input" placeholder="Fale com o Coach..." onkeypress="if(event.key==='Enter') sendMessage()">
         <button onclick="sendMessage()">➔</button>
@@ -88,6 +61,7 @@
         <div id="status-message"></div>
     </div>
 </details>
+
 
 </head>
 <body>
