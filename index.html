@@ -282,7 +282,7 @@
                 
                 currentMetrics.ctl = Math.round(latest.ctl || 0);
                 currentMetrics.atl = Math.round(latest.atl || 0);
-                currentMetrics.tsb = Math.round(latest.tsb || 0);
+                currentMetrics.tsb = currentMetrics.ctl - currentMetrics.atl;
 
                 document.getElementById('metric-ctl').innerText = currentMetrics.ctl;
                 document.getElementById('metric-atl').innerText = currentMetrics.atl;
