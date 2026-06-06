@@ -306,8 +306,7 @@
         chatBox.appendChild(msgDiv);
         chatBox.scrollTop = chatBox.scrollHeight;
     }
-
-        async function fetchIntervalsData() {
+    async function fetchIntervalsData() {
         const athleteId = localStorage.getItem('athleteId');
         const intervalsKey = localStorage.getItem('intervalsKey');
 
@@ -320,33 +319,60 @@
         const authString = btoa(`API_KEY:${intervalsKey}`);
         
         try {
-            // Mudámos para o endpoint direto do atleta, que traz o resumo atual do painel
-            const response = await fetch(`https://intervals.icu/api/v1/athlete/${athleteId}`, {
+            // Voltamos ao endpoint correto de wellness
+            const response = await fetch(`https://intervals.icu/api/v1/athlete/${athleteId}/wellness`, {
                 method: 'GET',
                 headers: { 'Authorization': `Basic ${authString}` }
             });
 
-            if (!response.ok) throw new Error('Falha na autenticação.');
+            if (!response.ok) throw new Error('Falha na autenticação ou erro na API.');
 
             const data = await response.json();
             
-            // Este endpoint traz ctl, atl e tsb diretamente no objeto principal
-            currentMetrics.ctl = Math.round(data.ctl || 0);
-            currentMetrics.atl = Math.round(data.atl || 0);
-            currentMetrics.tsb = Math.round(data.tsb || 0);
+            if (data && data.length > 0) {
+                let encontrado = false;
 
-            document.getElementById('metric-ctl').innerText = currentMetrics.ctl;
-            document.getElementById('metric-atl').innerText = currentMetrics.atl;
-            document.getElementById('metric-tsb').innerText = currentMetrics.tsb;
-            
-            showStatus('Dados atualizados com sucesso!', 'var(--success-color)');
-            
-            appendMessage('coach', `Métricas sincronizadas! O seu Fitness (CTL) está em ${currentMetrics.ctl}, Fadiga (ATL) em ${currentMetrics.atl} e Forma (TSB) em ${currentMetrics.tsb}. Qual é o plano ou objetivo para os próximos treinos?`);
+                // Percorremos o array de trás para a frente para ignorar dias futuros vazios
+                // e encontrar o dia mais recente com métricas reais calculadas
+                for (let i = data.length - 1; i >= 0; i--) {
+                    const dia = data[i];
+                    // Mapeia de forma segura quer venha como ctl/atl ou ctlLoad/atlLoad
+                    const ctlVal = dia.ctl !== undefined ? dia.ctl : dia.ctlLoad;
+                    const atlVal = dia.atl !== undefined ? dia.atl : dia.atlLoad;
+
+                    if (ctlVal !== undefined && ctlVal > 0) {
+                        currentMetrics.ctl = Math.round(ctlVal);
+                        currentMetrics.atl = Math.round(atlVal !== undefined ? atlVal : 0);
+                        currentMetrics.tsb = currentMetrics.ctl - currentMetrics.atl;
+                        encontrado = true;
+                        break;
+                    }
+                }
+
+                // Fallback de segurança se todo o histórico estiver a zeros
+                if (!encontrado) {
+                    const ultimo = data[data.length - 1];
+                    currentMetrics.ctl = Math.round(ultimo.ctl || ultimo.ctlLoad || 0);
+                    currentMetrics.atl = Math.round(ultimo.atl || ultimo.atlLoad || 0);
+                    currentMetrics.tsb = currentMetrics.ctl - currentMetrics.atl;
+                }
+
+                document.getElementById('metric-ctl').innerText = currentMetrics.ctl;
+                document.getElementById('metric-atl').innerText = currentMetrics.atl;
+                document.getElementById('metric-tsb').innerText = currentMetrics.tsb;
+                
+                showStatus('Dados atualizados com sucesso!', 'var(--success-color)');
+                
+                appendMessage('coach', `Métricas sincronizadas! O seu Fitness (CTL) está em ${currentMetrics.ctl}, Fadiga (ATL) em ${currentMetrics.atl} e Forma (TSB) em ${currentMetrics.tsb}. Qual é o plano ou objetivo para os próximos treinos?`);
+            } else {
+                throw new Error('Nenhum dado de histórico encontrado.');
+            }
             
         } catch (error) {
             showStatus(`Erro: ${error.message}`, '#ff3b30');
         }
     }
+
 
     async function sendMessage() {
         const inputEl = document.getElementById('user-input');
