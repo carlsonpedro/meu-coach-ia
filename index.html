@@ -10,236 +10,85 @@
     <link rel="apple-touch-icon" href="https://images.unsplash.com/photo-1530541930197-ff16ac917b0e?w=180&h=180&fit=crop&q=80">
 
     <title>AI Triathlon Coach</title>
-    <style>
-        :root {
-            --bg-color: #121214;
-            --card-bg: #1c1c1e;
-            --accent-color: #007aff;
-            --success-color: #34c759;
-            --warning-color: #ff9500;
-            --danger-color: #ff3b30;
-            --text-color: #ffffff;
-            --text-muted: #8e8e93;
-            --border-color: #2c2c2e;
-        }
+  <style>
+    :root {
+        --bg-dark: #0f141c;
+        --card-bg: #1a222d;
+        --accent-blue: #00c7ff;
+        --success-color: #34c759;
+        --danger-color: #ff3b30;
+        --text-main: #f5f7fa;
+        --text-muted: #8e9aa8;
+    }
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            margin: 0;
-            padding: 0;
-            padding-bottom: 40px;
-        }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; }
+    
+    body { background-color: var(--bg-dark); color: var(--text-main); padding: 15px; padding-bottom: 80px; }
 
-        .container {
-            max-width: 500px;
-            margin: 0 auto;
-            padding: 16px;
-            box-sizing: border-box;
-        }
+    /* Dashboard de Métricas */
+    .metrics-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
+    .metric-card { background: var(--card-bg); padding: 12px; border-radius: 12px; text-align: center; border: 1px solid #253140; }
+    .metric-card p { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; }
+    .metric-card h3 { font-size: 24px; margin-top: 5px; font-weight: 700; color: var(--text-main); }
 
-        /* Banner de Cabeçalho com Imagem de Triatlo */
-        .app-header {
-            position: relative;
-            height: 160px;
-            background-image: linear-gradient(to bottom, rgba(18, 18, 20, 0.2), rgba(18, 18, 20, 1)), 
-                              url('https://images.unsplash.com/photo-1530541930197-ff16ac917b0e?w=800&auto=format&fit=crop&q=80');
-            background-size: cover;
-            background-position: center;
-            display: flex;
-            align-items: flex-end;
-            padding: 20px 16px;
-            border-bottom: 1px solid var(--border-color);
-        }
+    /* Container do Chat */
+    .chat-container { background: var(--card-bg); border-radius: 16px; border: 1px solid #253140; display: flex; flex-direction: column; height: 350px; margin-bottom: 20px; overflow: hidden; }
+    .chat-header { background: #222d3a; padding: 12px 15px; font-size: 14px; font-weight: 600; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #253140; }
+    .clear-btn { background: none; border: none; color: var(--danger-color); font-size: 12px; cursor: pointer; font-weight: bold; }
+    
+    .chat-box { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; }
+    
+    /* Balões de Mensagem */
+    .message { max-width: 85%; padding: 10px 14px; border-radius: 16px; font-size: 14px; line-height: 1.4; word-wrap: break-word; }
+    .message.user { background: var(--accent-blue); color: #000; align-self: flex-end; border-bottom-right-radius: 4px; font-weight: 500; }
+    .message.coach { background: #253140; color: var(--text-main); align-self: flex-start; border-bottom-left-radius: 4px; }
+    
+    /* Input de Texto */
+    .input-area { display: flex; gap: 8px; padding: 10px; background: #161e27; border-top: 1px solid #253140; }
+    .input-area input { flex: 1; background: #222d3a; border: 1px solid #253140; border-radius: 20px; padding: 10px 16px; color: #fff; font-size: 14px; outline: none; }
+    .input-area button { background: var(--accent-blue); border: none; width: 40px; height: 40px; border-radius: 50%; color: #000; font-weight: bold; cursor: pointer; display: flex; align-items: center; justify-content: center; }
 
-        .app-header h1 {
-            font-size: 26px;
-            font-weight: 800;
-            margin: 0;
-            text-shadow: 0 2px 4px rgba(0,0,0,0.8);
-            letter-spacing: -0.5px;
-        }
+    /* Seção de Configurações Colapsável */
+    details { background: var(--card-bg); border-radius: 12px; border: 1px solid #253140; margin-bottom: 15px; }
+    summary { padding: 12px; font-size: 14px; font-weight: 600; cursor: pointer; color: var(--text-muted); }
+    .settings-content { padding: 15px; display: flex; flex-direction: column; gap: 10px; border-top: 1px solid #253140; }
+    .settings-content input { background: #121820; border: 1px solid #253140; padding: 10px; border-radius: 8px; color: #fff; font-size: 13px; }
+    .btn-save { background: var(--success-color); color: #000; border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+    
+    #status-message { font-size: 12px; text-align: center; margin-top: 5px; }
+</style>
 
-        .card {
-            background-color: var(--card-bg);
-            border-radius: 14px;
-            padding: 16px;
-            margin-bottom: 16px;
-            border: 1px solid var(--border-color);
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        }
+<div class="metrics-grid">
+    <div class="metric-card"><p>Fitness (CTL)</p><h3 id="metric-ctl">--</h3></div>
+    <div class="metric-card"><p>Fadiga (ATL)</p><h3 id="metric-atl">--</h3></div>
+    <div class="metric-card"><p>Forma (TSB)</p><h3 id="metric-tsb">--</h3></div>
+</div>
 
-        .card-title {
-            font-size: 13px;
-            text-transform: uppercase;
-            color: var(--text-muted);
-            margin-bottom: 12px;
-            font-weight: 700;
-            letter-spacing: 0.8px;
-        }
+<div class="chat-container">
+    <div class="chat-header">
+        <span>🏃‍♂️ Coach de Endurance IA</span>
+        <button class="clear-btn" onclick="clearChat()">Limpar Chat</button>
+    </div>
+    <div class="chat-box" id="chat-box">
+        <div class="message coach">Métricas sincronizadas. Pronto para alinhar a planilha de treinos?</div>
+    </div>
+    <div class="input-area">
+        <input type="text" id="user-input" placeholder="Fale com o Coach..." onkeypress="if(event.key==='Enter') sendMessage()">
+        <button onclick="sendMessage()">➔</button>
+    </div>
+</div>
 
-        /* Menu colapsável para chaves de API */
-        details {
-            margin-bottom: 16px;
-            background-color: #1c1c1e;
-            border-radius: 12px;
-            border: 1px solid var(--border-color);
-            padding: 12px 16px;
-        }
+<details>
+    <summary>⚙️ Configurações de Integração</summary>
+    <div class="settings-content">
+        <input type="text" id="athlete-id" placeholder="Intervals.icu Athlete ID">
+        <input type="password" id="intervals-key" placeholder="Intervals.icu API Key">
+        <input type="password" id="gemini-key" placeholder="Gemini API Key">
+        <button class="btn-save" onclick="saveSettings()">Salvar Credenciais</button>
+        <div id="status-message"></div>
+    </div>
+</details>
 
-        summary {
-            font-size: 14px;
-            font-weight: 600;
-            color: var(--text-muted);
-            cursor: pointer;
-            outline: none;
-            user-select: none;
-        }
-
-        .input-group {
-            margin-top: 12px;
-            margin-bottom: 12px;
-        }
-
-        .input-group label {
-            display: block;
-            font-size: 11px;
-            color: var(--text-muted);
-            margin-bottom: 4px;
-            text-transform: uppercase;
-            font-weight: 600;
-        }
-
-        input, select, textarea {
-            width: 100%;
-            background-color: #2c2c2e;
-            border: 1px solid #3a3a3c;
-            border-radius: 8px;
-            padding: 11px;
-            color: white;
-            font-size: 15px;
-            box-sizing: border-box;
-            font-family: inherit;
-            transition: border-color 0.2s;
-        }
-
-        input:focus, select:focus, textarea:focus {
-            outline: none;
-            border-color: var(--accent-color);
-        }
-
-        textarea {
-            resize: vertical;
-            height: 70px;
-        }
-
-        button {
-            width: 100%;
-            background-color: var(--accent-color);
-            color: white;
-            border: none;
-            border-radius: 8px;
-            padding: 12px;
-            font-size: 15px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: opacity 0.1s;
-        }
-
-        button:active {
-            opacity: 0.8;
-        }
-
-        .metrics-grid {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-            text-align: center;
-        }
-
-        .metric-box {
-            background: #2c2c2e;
-            padding: 12px 6px;
-            border-radius: 10px;
-            border: 1px solid #3a3a3c;
-        }
-
-        .metric-value {
-            font-size: 24px;
-            font-weight: 800;
-            margin-bottom: 2px;
-        }
-
-        .metric-label {
-            font-size: 10px;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            font-weight: 600;
-        }
-
-        #status-message {
-            font-size: 13px;
-            text-align: center;
-            color: var(--text-muted);
-            margin-top: 10px;
-        }
-
-        .chat-area {
-            height: 280px;
-            overflow-y: auto;
-            border-radius: 10px;
-            padding: 12px;
-            background: #151517;
-            margin-bottom: 12px;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        .message {
-            max-width: 85%;
-            padding: 10px 14px;
-            border-radius: 16px;
-            font-size: 15px;
-            line-height: 1.45;
-        }
-
-        .message.user {
-            background-color: var(--accent-color);
-            color: white;
-            align-self: flex-end;
-            border-bottom-right-radius: 4px;
-        }
-
-        .message.coach {
-            background-color: #2c2c2e;
-            color: white;
-            align-self: flex-start;
-            border-bottom-left-radius: 4px;
-            border: 1px solid #3a3a3c;
-        }
-
-        .chat-input-container {
-            display: flex;
-            gap: 8px;
-        }
-
-        .chat-input-container input {
-            flex: 1;
-        }
-
-        .chat-input-container button {
-            width: auto;
-            padding: 0 20px;
-        }
-
-        .form-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-        }
-    </style>
 </head>
 <body>
 
