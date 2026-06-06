@@ -454,71 +454,69 @@
     }
 
     async function sendMessage() {
-        const inputEl = document.getElementById('user-input');
-        const userText = inputEl.value.trim();
-        const geminiKey = localStorage.getItem('geminiKey');
+    const inputEl = document.getElementById('user-input');
+    const userText = inputEl.value.trim();
+    const geminiKey = localStorage.getItem('geminiKey');
 
-        if (!userText) return;
-        if (!geminiKey) {
-            alert('Por favor, salve a sua Gemini API Key nas configurações.');
-            return;
-        }
+    if (!userText) return;
+    if (!geminiKey) {
+        alert('Por favor, salve a sua Gemini API Key nas configurações.');
+        return;
+    }
 
-        appendMessage('user', userText);
-        inputEl.value = '';
+    appendMessage('user', userText);
+    inputEl.value = '';
 
-        chatHistory.push({
-            role: "user",
-            parts: [{ text: userText }]
-        });
+    chatHistory.push({
+        role: "user",
+        parts: [{ text: userText }]
+    });
 
-        const instructionsBlock = `[CONTEXTO INTERNO DO SEU SISTEMA DE COACHING - NÃO REPETIR ISSO NA RESPOSTA: Você é um treinador de triatlo de elite com IA, inteligente e adaptativo como o Humango. Seu atleta Pedro utiliza um Garmin Forerunner 255 para corrida/natação e treina ciclismo no MyWhoosh (gravando também pelo Garmin). 
+    const instructionsBlock = `[CONTEXTO INTERNO DO SEU SISTEMA DE COACHING - NÃO REPETIR ISSO NA RESPOSTA: Você é um treinador de triatlo de elite com IA, inteligente e adaptativo como o Humango. Seu atleta Pedro utiliza um Garmin Forerunner 255 para corrida/natação e treina ciclismo no MyWhoosh (gravando também pelo Garmin). 
 Métricas atuais do atleta baseadas no Intervals.icu: Fitness (CTL): ${currentMetrics.ctl}, Fadiga (ATL): ${currentMetrics.atl}, Forma (TSB): ${currentMetrics.tsb}.
 Regras de conduta: Dê feedbacks curtos, motivadores e focados em eficiência de endurance. Sempre que planejar um treino estruturado, sugira blocos claros de zonas (ex: Z2, Z4). Responda sempre em português do Brasil (pt-BR) de forma extremamente natural.]\n\nMensagem do Atleta: ${userText}`;
 
-        let apiContents = JSON.parse(JSON.stringify(chatHistory));
-        if (apiContents.length > 0) {
-            apiContents[apiContents.length - 1].parts[0].text = instructionsBlock;
-        }
-
-        try {
-            // Alterado para a rota estável v1, com gemini-2.0-flash e travas anti-bloqueio de navegador móvel
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${geminiKey}`, {
-                method: 'POST',
-                mode: 'cors',
-                credentials: 'omit',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: apiContents
-                })
-            });
-
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error?.message || `Erro HTTP ${response.status}`);
-            }
-
-            if (!data.candidates || data.candidates.length === 0) {
-                throw new Error('A API não retornou nenhuma resposta estruturada.');
-            }
-
-            const coachReply = data.candidates[0].content.parts[0].text;
-            appendMessage('coach', coachReply);
-
-            chatHistory.push({
-                role: "model",
-                parts: [{ text: coachReply }]
-            });
-
-            localStorage.setItem('coachChatHistory', JSON.stringify(chatHistory));
-
-        } catch (error) {
-            console.error(error);
-            appendMessage('coach', `⚠️ Falha na requisição: ${error.message}`);
-            chatHistory.pop();
-        }
+    let apiContents = JSON.parse(JSON.stringify(chatHistory));
+    if (apiContents.length > 0) {
+        apiContents[apiContents.length - 1].parts[0].text = instructionsBlock;
     }
+
+    try {
+        // Rota estável oficial (v1) combinado com o modelo correto (gemini-2.0-flash)
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-2.0-flash:generateContent?key=${geminiKey}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: apiContents
+            })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) {
+            throw new Error(data.error?.message || `Erro HTTP ${response.status}`);
+        }
+
+        if (!data.candidates || data.candidates.length === 0) {
+            throw new Error('A API não retornou nenhuma resposta estruturada.');
+        }
+
+        const coachReply = data.candidates[0].content.parts[0].text;
+        appendMessage('coach', coachReply);
+
+        chatHistory.push({
+            role: "model",
+            parts: [{ text: coachReply }]
+        });
+
+        localStorage.setItem('coachChatHistory', JSON.stringify(chatHistory));
+
+    } catch (error) {
+        console.error(error);
+        appendMessage('coach', `⚠️ Falha na requisição: ${error.message}`);
+        chatHistory.pop();
+    }
+}
 
     async function scheduleWorkout() {
         const athleteId = localStorage.getItem('athleteId');
