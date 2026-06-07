@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="AI Coach">
+    <link rel="apple-touch-icon" href="https://images.unsplash.com/photo-1530541930197-ff16ac917b0e?w=180&h=180&fit=crop&q=80">
+    <title>AI Triathlon Coach</title>
+    
+    <!-- Chart.js para o Gráfico de Evolução -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Arquivo de estilização que enviarei na sequência -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="container">
+    <h1>Coach de Triatlo IA</h1>
+
+    <details>
+        <summary>⚙️ Configurações & Perfil</summary>
+        <div class="settings-content">
+            <div class="form-row">
+                <div class="input-group">
+                    <label>ID do Atleta (Intervals)</label>
+                    <input type="text" id="athlete-id" placeholder="Ex: 1234567">
+                </div>
+                <div class="input-group">
+                    <label>API Key (Intervals)</label>
+                    <input type="password" id="intervals-key" placeholder="API key">
+                </div>
+            </div>
+            <div class="input-group">
+                <label>Gemini API Key</label>
+                <input type="password" id="gemini-key" placeholder="Sua chave API do Gemini">
+            </div>
+            <div class="input-group">
+                <label>Preferências Adicionais de Rotina</label>
+                <textarea id="athlete-bio" style="height: 60px;" placeholder="Ex: Costumo treinar bem cedo antes do trabalho."></textarea>
+            </div>
+            <button style="background-color: var(--success-color);" onclick="saveSettings()">Salvar Configurações</button>
+        </div>
+    </details>
+
+    <div class="card">
+        <div class="card-title">Status de Carga & Forma</div>
+        <div class="metrics-grid">
+            <div class="metric-box"><div class="metric-value" id="metric-ctl">--</div><div class="metric-label">Fitness (CTL)</div></div>
+            <div class="metric-box"><div class="metric-value" id="metric-atl">--</div><div class="metric-label">Fadiga (ATL)</div></div>
+            <div class="metric-box"><div class="metric-value" id="metric-tsb">--</div><div class="metric-label">Forma (TSB)</div></div>
+        </div>
+
+        <div class="card-title" style="margin-top: 14px; margin-bottom: 8px;">Zonas de Limiar Referência</div>
+        <div class="metrics-grid">
+            <div class="metric-box" style="background: #1c2633;"><div class="metric-value" id="metric-ftp" style="color: var(--warning-color);">--</div><div class="metric-label">FTP (Bike)</div></div>
+            <div class="metric-box" style="background: #1c2633;"><div class="metric-value" id="metric-rpace" style="color: var(--warning-color);">--</div><div class="metric-label">Limiar (Corrida)</div></div>
+            <div class="metric-box" style="background: #1c2633;"><div class="metric-value" id="metric-swimcss" style="color: var(--warning-color);">--</div><div class="metric-label">CSS (Nata)</div></div>
+        </div>
+        <button style="margin-top: 8px; background-color: #222d3a; color: var(--accent-color); border: 1px solid var(--border-color); padding: 8px; font-size: 13px;" onclick="fetchIntervalsData()">Sincronizar Dados Completos</button>
+        <div id="status-message"></div>
+    </div>
+
+    <!-- GRÁFICO DE EVOLUÇÃO -->
+    <div class="card">
+        <div class="card-title">Evolução dos Parâmetros (Últimos Dias)</div>
+        <div style="position: relative; width: 100%; height: 160px;">
+            <canvas id="evolutionChart"></canvas>
+        </div>
+    </div>
+
+    <!-- ZONA DE VALIDAÇÃO DE PLANILHA -->
+    <div class="card" id="validation-card" style="display: none; border: 1px solid var(--warning-color);">
+        <div class="card-title" style="color: var(--warning-color);">📋 Treinos Sugeridos para Validação</div>
+        <div id="preview-list" style="margin-bottom: 12px;"></div>
+        <button style="background-color: var(--success-color); color: #000;" onclick="approvePendingWorkouts()">Aprovar e Enviar para o Garmin</button>
+    </div>
+
+    <div class="card">
+        <div class="card-title">
+            Conversar com o Treinador
+            <button class="clear-btn" onclick="clearChat()">Limpar</button>
+        </div>
+        <div class="chat-area" id="chat-box">
+            <div class="message coach">Olá! Sincronize os dados acima para eu ler seu histórico. Me peça a planilha da semana para analisar e gerar o bloco de treinos focado no seu Sprint Triathlon!</div>
+        </div>
+        <div class="chat-input-container">
+            <input type="text" id="user-input" placeholder="Peça a planilha ou tire dúvidas..." onkeypress="if(event.key === 'Enter') sendMessage()">
+            <button onclick="sendMessage()">➔</button>
+        </div>
+    </div>
+</div>
+
+<!-- Arquivo de lógica que mandarei por último -->
+<script src="app.js"></script>
+</body>
+</html>
