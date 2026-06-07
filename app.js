@@ -102,6 +102,24 @@ function renderChart(wellnessData) {
     });
 }
 
+// === MICRO-PARTE 6: ORQUESTRADOR DE SINCRONIZAÇÃO ===
+async function fetchIntervalsData() {
+    const athleteId = localStorage.getItem('athleteId');
+    const intervalsKey = localStorage.getItem('intervalsKey');
+    if (!athleteId || !intervalsKey) return;
+
+    showStatus('Sincronizando dados...', 'var(--accent-color)');
+    const authHeader = { 'Authorization': `Basic ${btoa(`API_KEY:${intervalsKey}`)}` };
+    
+    try {
+        await fetchWellnessData(athleteId, authHeader);
+        await fetchAthleteProfile(athleteId, authHeader);
+        await fetchRecentEvents(athleteId, authHeader);
+        showStatus('Dados atualizados!', 'var(--success-color)');
+    } catch (error) { 
+        showStatus(`Erro: ${error.message}`, '#ff3b30'); 
+    }
+}
 
 
 
