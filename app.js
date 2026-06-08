@@ -1,11 +1,90 @@
-// === VARIÁVEIS GLOBAIS E INICIALIZAÇÃO ===
+console.log("🚀 [DEBUG] app.js começou a carregar...");
+
+// === 1. VARIÁVEIS GLOBAIS ===
 let currentMetrics = { ctl: '--', atl: '--', tsb: '--', ftp: '--', runPace: '--', swimCss: '--' };
 let chatHistory = [];
 let recentActivitiesSummary = "";
 let pendingWorkoutsList = [];
 let evolutionChartInstance = null;
 
+// === 2. FUNÇÕES DE BUSCA (DECLARADAS NO TOPO PARA EVITAR ERROS) ===
+async function fetchWellnessData(athleteId, authHeader) {
+    console.log("🔄 [DEBUG] Executando fetchWellnessData...");
+    const res = await fetch(`https://intervals.icu/api/v1/athlete/${athleteId}/wellness`, { method: 'GET', headers: authHeader });
+    if (!res.ok) throw new Error('Erro ao buscar carga (Wellness).');
+    const wellnessData = await res.json();
+    
+    if (wellnessData && wellnessData.length > 0) {
+        let ultimoDia = wellnessData.slice().reverse().find(dia => (dia.ctl || dia.ctlLoad) > 0);
+        if (ultimoDia) {
+            currentMetrics.ctl = Math.round(ultimoDia.ctl || ultimoDia.ctlLoad);
+            currentMetrics.atl = Math.round(ultimoDia.atl || ultimoDia.atlLoad || 0);
+            currentMetrics.tsb = currentMetrics.ctl - currentMetrics.atl;
+        }
+        renderChart(wellnessData);
+    }
+}
+
+async function fetchAthleteProfile(athleteId, authHeader) {
+    console.log("🔄 [DEBUG] Executando fetchAthleteProfile...");
+    try {
+        const res = await fetch(`https://intervals.icu/api/v1/athlete/${athleteId}`, { method: 'GET', headers: authHeader });
+        if (res.ok) {
+            const data = await res.json();
+            if (data.icu_ftp) currentMetrics.ftp = data.icu_ftp + "W";
+        }
+    } catch (e) {
+        console.error("Erro no perfil:", e);
+    }
+
+    calculateFallbackThresholds(currentMetrics.ctl === '--' ? 20 : currentMetrics.ctl);
+
+    if(document.getElementById('metric-ctl')) document.getElementById('metric-ctl').innerText = currentMetrics.ctl;
+    if(document.getElementById('metric-atl')) document.getElementById('metric-atl').innerText = currentMetrics.atl;
+    updateTSBDisplay(currentMetrics.tsb);
+    if(document.getElementById('metric-ftp')) document.getElementById('metric-ftp').innerText = currentMetrics.ftp;
+    if(document.getElementById('metric-rpace')) document.getElementById('metric-rpace').innerText = currentMetrics.runPace;
+    if(document.getElementById('metric-swimcss')) document.getElementById('metric-swimcss').innerText = currentMetrics.swimCss;
+}
+
+async function fetchRecentEvents(athleteId, authHeader) {
+    console.log("🔄 [DEBUG] Executando fetchRecentEvents...");
+    let hojeStr = new Date().toISOString().split('T')[0];
+    let umaSemanaAtras = new Date(); umaSemanaAtras.setDate(umaSemanaAtras.getDate() - 8);
+    let inicioStr = umaSemanaAtras.toISOString().split('T')[0];
+
+    const res = await fetch(`https://intervals.icu/api/v1/athlete/${athleteId}/events?oldest=${inicioStr}&newest=${hojeStr}`, { method: 'GET', headers: authHeader });
+    if(res.ok) {
+        const events = await res.json();
+        let realizados = events.filter(e => e.type && e.moving_time > 0).slice(-3);
+        recentActivitiesSummary = realizados.map(e => 
+            `- ${e.type}: ${e.name}, Minutos: ${Math.round(e.moving_time/60)}, Watts Med: ${e.icu_average_watts || 'N/A'}, FC Med: ${e.average_heart_rate || 'N/A'}`
+        ).join('\n');
+    }
+}
+
+async function fetchIntervalsData() {
+    console.log("🔄 [DEBUG] Iniciando fetchIntervalsData...");
+    const athleteId = localStorage.getItem('athleteId');
+    const intervalsKey = localStorage.getItem('intervalsKey');
+    if (!athleteId || !intervalsKey) return;
+
+    showStatus('Sincronizando dados...', 'var(--accent-color)');
+    const authHeader = { 'Authorization': `Basic ${btoa(`API_KEY:${intervalsKey}`)}` };
+    
+    try {
+        await fetchWellnessData(athleteId, authHeader);
+        await fetchAthleteProfile(athleteId, authHeader);
+        await fetchRecentEvents(athleteId, authHeader);
+        showStatus('Dados updated!', 'var(--success-color)');
+    } catch (error) { 
+        showStatus(`Erro: ${error.message}`, '#ff3b30'); 
+    }
+}
+
+// === 3. INICIALIZAÇÃO WINDOW ===
 window.onload = function() {
+    console.log("🏁 [DEBUG] Window carregada. Resgatando dados locais...");
     if(localStorage.getItem('athleteId')) document.getElementById('athlete-id').value = localStorage.getItem('athleteId');
     if(localStorage.getItem('intervalsKey')) document.getElementById('intervals-key').value = localStorage.getItem('intervalsKey');
     if(localStorage.getItem('geminiKey')) document.getElementById('gemini-key').value = localStorage.getItem('geminiKey');
@@ -13,13 +92,14 @@ window.onload = function() {
     if(localStorage.getItem('athleteId') && localStorage.getItem('intervalsKey')) fetchIntervalsData();
 };
 
-// === CONFIGURAÇÕES E STATUS ===
+// === 4. CONFIGURAÇÕES E STATUS ===
 function saveSettings() {
     localStorage.setItem('athleteId', document.getElementById('athlete-id').value.trim());
     localStorage.setItem('intervalsKey', document.getElementById('intervals-key').value.trim());
     localStorage.setItem('geminiKey', document.getElementById('gemini-key').value.trim());
     localStorage.setItem('athleteBio', document.getElementById('athlete-bio').value.trim());
     showStatus('Configurações salvas!', 'var(--success-color)');
+    fetchIntervalsData();
 }
 
 function showStatus(text, color) {
@@ -30,7 +110,7 @@ function showStatus(text, color) {
     }
 }
 
-// === FORMATAÇÃO DO CHAT E INDICADORES ===
+// === 5. CHAT E FORMATAÇÃO ===
 function formatCoachMarkdown(text) {
     let safeText = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     return safeText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>');
@@ -55,7 +135,7 @@ function updateTSBDisplay(tsb) {
     else tsbEl.style.color = 'var(--accent-color)';
 }
 
-// === CÁLCULO DE LIMIARES RESERVA ===
+// === 6. CÁLCULO DE SUPORTE ===
 function calculateFallbackThresholds(ctl) {
     let baseFtp = 150 + (ctl * 1.5);
     let basePaceSegundos = 360 - (ctl * 1.2); 
@@ -76,7 +156,7 @@ function calculateFallbackThresholds(ctl) {
     }
 }
 
-// === RENDERIZAÇÃO DO GRÁFICO ===
+// === 7. GRÁFICO (CHART.JS) ===
 function renderChart(wellnessData) {
     const el = document.getElementById('evolutionChart');
     if (!el) return;
@@ -112,76 +192,7 @@ function renderChart(wellnessData) {
     });
 }
 
-// === SINCRONIZAÇÃO COM INTERVALS.ICU ===
-async function fetchIntervalsData() {
-    const athleteId = localStorage.getItem('athleteId');
-    const intervalsKey = localStorage.getItem('intervalsKey');
-    if (!athleteId || !intervalsKey) return;
-
-    showStatus('Sincronizando dados...', 'var(--accent-color)');
-    const authHeader = { 'Authorization': `Basic ${btoa(`API_KEY:${intervalsKey}`)}` };
-    
-    try {
-        await fetchWellnessData(athleteId, authHeader);
-        await fetchAthleteProfile(athleteId, authHeader);
-        await fetchRecentEvents(athleteId, authHeader);
-        showStatus('Dados atualizados!', 'var(--success-color)');
-    } catch (error) { 
-        showStatus(`Erro: ${error.message}`, '#ff3b30'); 
-    }
-}
-
-async function fetchWellnessData(athleteId, authHeader) {
-    const res = await fetch(`https://intervals.icu/api/v1/athlete/${athleteId}/wellness`, { method: 'GET', headers: authHeader });
-    if (!res.ok) throw new Error('Erro ao buscar carga (Wellness).');
-    const wellnessData = await res.json();
-    
-    if (wellnessData && wellnessData.length > 0) {
-        let ultimoDia = wellnessData.slice().reverse().find(dia => (dia.ctl || dia.ctlLoad) > 0);
-        if (ultimoDia) {
-            currentMetrics.ctl = Math.round(ultimoDia.ctl || ultimoDia.ctlLoad);
-            currentMetrics.atl = Math.round(ultimoDia.atl || ultimoDia.atlLoad || 0);
-            currentMetrics.tsb = currentMetrics.ctl - currentMetrics.atl;
-        }
-        renderChart(wellnessData);
-    }
-}
-
-async function fetchAthleteProfile(athleteId, authHeader) {
-    try {
-        const res = await fetch(`https://intervals.icu/api/v1/athlete/${athleteId}`, { method: 'GET', headers: authHeader });
-        if (res.ok) {
-            const data = await res.json();
-            if (data.icu_ftp) currentMetrics.ftp = data.icu_ftp + "W";
-        }
-    } catch (e) {}
-
-    calculateFallbackThresholds(currentMetrics.ctl === '--' ? 20 : currentMetrics.ctl);
-
-    if(document.getElementById('metric-ctl')) document.getElementById('metric-ctl').innerText = currentMetrics.ctl;
-    if(document.getElementById('metric-atl')) document.getElementById('metric-atl').innerText = currentMetrics.atl;
-    updateTSBDisplay(currentMetrics.tsb);
-    if(document.getElementById('metric-ftp')) document.getElementById('metric-ftp').innerText = currentMetrics.ftp;
-    if(document.getElementById('metric-rpace')) document.getElementById('metric-rpace').innerText = currentMetrics.runPace;
-    if(document.getElementById('metric-swimcss')) document.getElementById('metric-swimcss').innerText = currentMetrics.swimCss;
-}
-
-async function fetchRecentEvents(athleteId, authHeader) {
-    let hojeStr = new Date().toISOString().split('T')[0];
-    let umaSemanaAtras = new Date(); umaSemanaAtras.setDate(umaSemanaAtras.getDate() - 8);
-    let inicioStr = umaSemanaAtras.toISOString().split('T')[0];
-
-    const res = await fetch(`https://intervals.icu/api/v1/athlete/${athleteId}/events?oldest=${inicioStr}&newest=${hojeStr}`, { method: 'GET', headers: authHeader });
-    if(res.ok) {
-        const events = await res.json();
-        let realizados = events.filter(e => e.type && e.moving_time > 0).slice(-3);
-        recentActivitiesSummary = realizados.map(e => 
-            `- ${e.type}: ${e.name}, Minutos: ${Math.round(e.moving_time/60)}, Watts Med: ${e.icu_average_watts || 'N/A'}, FC Med: ${e.average_heart_rate || 'N/A'}`
-        ).join('\n');
-    }
-}
-
-// === INTEGRAÇÃO COM GEMINI ===
+// === 8. ENVIO PARA GEMINI ===
 async function sendMessage() {
     const inputEl = document.getElementById('user-input');
     const btnEl = document.querySelector('.chat-input-container button');
@@ -204,8 +215,8 @@ async function sendMessage() {
     Objetivo do Atleta: Sprint Triathlon (750m natação, 20km ciclismo, 5km corrida). O atleta usa Garmin e MyWhoosh.
     
     REGRAS INEGOCIÁVEIS DE FORÇA NA SEMANA:
-    - Segunda-feira (2ª feira): Treino de Força com Kettlebells obrigatório. Dividido rigidamente em 2 blocos de 20 minutos. Bloco 1: Upper Body Complex. Bloco 2: Lower Body Complex.
-    - Quarta-feira (4ª feira): Treino de Força com Halteres obrigatório. Dividido rigidamente em 2 blocos de 20 minutos. Bloco 1: Upper Body. Bloco 2: Lower Body.
+    - Segunda-feira (2ª feira): Treino de Força com Kettlebells obrigatório. Dividido rigidamente in 2 blocos de 20 minutos. Bloco 1: Upper Body Complex. Bloco 2: Lower Body Complex.
+    - Quarta-feira (4ª feira): Treino de Força com Halteres obrigatório. Dividido rigidamente in 2 blocos de 20 minutos. Bloco 1: Upper Body. Bloco 2: Lower Body.
     
     REGRAS RÍGIDAS DE DURAÇÃO E TEMPO:
     - Durante os dias de semana (Segunda a Sexta): Os treinos de ciclismo (Ride) não podem passar de 50 minutos e os treinos de corrida (Run) não podem passar de 45 minutos.
@@ -274,7 +285,7 @@ function renderPendingWorkouts() {
     card.style.display = 'block';
 }
 
-// === ENVIO DE TREINOS PARA O CALENDÁRIO ===
+// === 9. ENVIO PARA INTERVALS.ICU ===
 async function uploadWorkouts() {
     const athleteId = localStorage.getItem('athleteId');
     const intervalsKey = localStorage.getItem('intervalsKey');
@@ -289,7 +300,7 @@ async function uploadWorkouts() {
         'Content-Type': 'application/json'
     };
 
-    let sucessos = 0;
+    let successes = 0;
     for (const w of pendingWorkoutsList) {
         const payload = {
             start_date_local: `${w.date}T06:00:00`,
@@ -304,15 +315,15 @@ async function uploadWorkouts() {
                 headers: authHeader,
                 body: JSON.stringify(payload)
             });
-            if (res.ok) sucessos++;
+            if (res.ok) successes++;
         } catch (e) {
             console.error('Erro ao subir treino:', e);
         }
     }
 
-    if (sucessos > 0) {
-        showStatus(`${sucessos} treino(s) enviados!`, 'var(--success-color)');
-        appendMessage('coach', `🎯 Feito! Enviei ${sucessos} treino(s) direto para o seu calendário no Intervals.icu. Estão prontos para sincronizar com o Garmin/MyWhoosh!`);
+    if (successes > 0) {
+        showStatus(`${successes} treino(s) enviados!`, 'var(--success-color)');
+        appendMessage('coach', `🎯 Feito! Enviei ${successes} treino(s) direto para o seu calendário no Intervals.icu. Estão prontos para sincronizar com o Garmin/MyWhoosh!`);
         pendingWorkoutsList = [];
         renderPendingWorkouts();
         fetchIntervalsData();
@@ -321,3 +332,5 @@ async function uploadWorkouts() {
         if (btnEl) btnEl.disabled = false;
     }
 }
+
+console.log("✅ [DEBUG] app.js terminou de carregar com sucesso!");
