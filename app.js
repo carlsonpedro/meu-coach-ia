@@ -221,6 +221,18 @@ async function sendMessage() {
     - Treinos de Base / Endurance / Leves (Z2): Use estritamente a Frequência Cardíaca (FC) como métrica de controle de intensidade na descrição do treino.
     - Treinos Fortes / Intervalados / Ritmo Alto (Z4 ou superior): Use Potência (Watts) para treinos de ciclismo (foco em flutuações Over-Unders perto/acima do FTP no MyWhoosh) e Pace (min/km) para treinos de corrida.
 
+    SINTAXE OBRIGATÓRIA DE TREINO (PADRÃO DE SCRIPT DO INTERVALS.ICU):
+    Para treinos de Ride (Ciclismo) e Run (Corrida), o campo "desc" NÃO PODE conter texto corrido ou parágrafos. Ele deve ser um script interpretável linha por linha seguindo estas regras exatas:
+    1. Cada bloco de tempo deve começar obrigatoriamente com um hífen e espaço, seguido da duração e do alvo (Ex: "- 10m Z1" ou "- 35m Z2 HR").
+    2. Adicione descrições legíveis usando a tag 'text='. Exemplo: "- 5m Z1 text=Aquecimento girando leve"
+    3. Para treinos baseados em Frequência Cardíaca (Z2/Leves), use o sufixo "HR". Exemplo: "- 30m Z2 HR text=Rodagem de Base"
+    4. Para treinos baseados em Potência/FTP (Ciclismo Intervalado), use porcentagens diretas. Exemplo de Over-Unders:
+       3x
+       - 4m 95% text=Sub-limiar (Under)
+       - 2m 105% text=Acima do limiar (Over)
+    5. Para treinos baseados em Pace (Corrida de Ritmo/Tiros), passe o ritmo de minutos por km de forma explícita. Exemplo: "- 20m 5:15/km text=Ritmo de Prova Sprint"
+    6. Treinos de Força (WeightTraining) não geram gráficos, então use bullet points simples separados por quebra de linha (\\n).
+
     REGRAS INEGOCIÁVEIS DE FORÇA NA SEMANA:
     - Segunda-feira (2ª feira): Treino de Força com Kettlebells obrigatório. Dividido rigidamente em 2 blocos de 20 minutos. Bloco 1: Upper Body Complex. Bloco 2: Lower Body Complex.
     - Quarta-feira (4ª feira): Treino de Força com Halteres obrigatório. Dividido rigidamente em 2 blocos de 20 minutos. Bloco 1: Upper Body. Bloco 2: Lower Body.
@@ -236,7 +248,7 @@ async function sendMessage() {
     A data de HOJE é: ${dataHoje}. Calcule as datas da semana estritamente a partir disso. Responde em português de forma direta, analítica e focada em qualidade sobre volume.
 
     REGRA DO JSON: Se sugerires treinos, adicione as três barras no final da resposta exatamente assim:
-    |||[{"date":"AAAA-MM-DD","type":"Run"|"Ride"|"Swim"|"Strength","name":"Nome Curto","desc":"- Bloco 1 (20m): ...\\n- Bloco 2 (20m): ..."}]`;
+    |||[{"date":"AAAA-MM-DD","type":"Run"|"Ride"|"Swim"|"WeightTraining","name":"Nome Curto","desc":"- 10m Z1 text=Aquecimento\\n3x\\n- 4m 95%\\n- 2m 105%\\n- 5m Z1"}]`;
 
     // === COLOQUE ESTE BLOCO SUBSTIUINDO O TRY/CATCH DA FUNÇÃO sendMessage ===
     const requestBody = { contents: apiContents, systemInstruction: { parts: [{ text: systemInstruction }] } };
