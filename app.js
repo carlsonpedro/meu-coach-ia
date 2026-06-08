@@ -346,4 +346,7 @@ async function uploadWorkouts() {
     }
 }
 
+// === ALIAS DE COMPATIBILIDADE ===
+function approvePendingWorkouts() { uploadWorkouts(); }
+
 console.log("✅ [DEBUG] app.js terminou de carregar com sucesso!");
