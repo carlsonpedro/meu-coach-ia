@@ -219,9 +219,11 @@ async function sendMessage() {
     REGRA CRUCIAL DE NATAÇÃO:
     - NÃO sugira treinos de natação (Swim) por padrão na planilha. O atleta só fará natação quando deixar isso EXPLICITO no comentário/prompt atual do chat. Se ele não pedir, foque apenas em Ciclismo, Corrida e Força.
 
-    DIRETRIZES DE INTENSIDADE PARA O GARMIN (INEGOCIÁVEL):
-    - Treinos de Base / Endurance / Leves (Z2): Use estritamente a Frequência Cardíaca (FC) como métrica de controle de intensidade na descrição do treino.
-    - Treinos Fortes / Intervalados / Ritmo Alto (Z4 ou superior): Use Potência (Watts) para treinos de ciclismo (foco em flutuações Over-Unders perto/acima do FTP no MyWhoosh) e Pace (min/km) para treinos de corrida.
+    DIRETRIZES DE INTENSIDADE PARA O GARMIN/INTERVALS (INEGOCIÁVEL):
+    - NÃO UTILIZE FREQUÊNCIA CARDÍACA (HR, BPM OU SUFIXO "HR") EM NENHUMA HIPÓTESE.
+    - Treinos de Ciclismo (Ride): Use estritamente Potência baseada em porcentagem do FTP. Exemplo: "- 30m 70% text=Z2 Aeróbico constante" ou "- 4m 105% text=Tiro acima do FTP".
+    - Treinos de Corrida (Run): Use estritamente Pace por quilômetro formatado de forma explícita. Exemplo: "- 40m 5:30/km text=Rodagem ritmada Z2".
+    - Treinos de Força (WeightTraining): Use bullet points simples separados por quebra de linha (\\n) para listar os exercícios nos blocos.
 
     SINTAXE OBRIGATÓRIA DE TREINO (PADRÃO DE SCRIPT DO INTERVALS.ICU):
     Para treinos de Ride (Ciclismo) e Run (Corrida), o campo "desc" NÃO PODE conter texto corrido ou parágrafos. Ele deve ser um script interpretável linha por linha seguindo estas regras exatas:
@@ -432,5 +434,49 @@ async function uploadWorkouts() {
 
 // === ALIAS DE COMPATIBILIDADE ===
 function approvePendingWorkouts() { uploadWorkouts(); }
+
+function renderPendingWorkouts() {
+    const cardEl = document.getElementById('validation-card');
+    if (!cardEl) return;
+
+    // Procura ou cria um contêiner para a lista de treinos dentro do card
+    let listEl = document.getElementById('pending-workouts-list');
+    if (!listEl) {
+        listEl = document.createElement('div');
+        listEl.id = 'pending-workouts-list';
+        listEl.style.marginBottom = '20px';
+        listEl.style.maxHeight = '300px';
+        listEl.style.overflowY = 'auto';
+        cardEl.insertBefore(listEl, cardEl.firstChild);
+    }
+
+    listEl.innerHTML = ''; // Limpa revisões anteriores
+
+    if (!pendingWorkoutsList || pendingWorkoutsList.length === 0) {
+        cardEl.style.display = 'none';
+        return;
+    }
+
+    // Injeta visualmente cada treino gerado na caixa de validação
+    pendingWorkoutsList.forEach((workout) => {
+        const item = document.createElement('div');
+        item.style.background = 'rgba(255, 255, 255, 0.05)';
+        item.style.padding = '12px';
+        item.style.borderRadius = '6px';
+        item.style.marginBottom = '8px';
+        item.style.borderLeft = workout.type === 'Ride' ? '4px solid #10b981' : workout.type === 'Run' ? '4px solid #3b82f6' : '4px solid #a855f7';
+        
+        item.innerHTML = `
+            <div style="display:flex; justify-content:space-between; font-weight:bold; font-size:14px; margin-bottom:5px;">
+                <span>📅 ${workout.date} - ${workout.name}</span>
+                <span style="opacity:0.7;">(${workout.type})</span>
+            </div>
+            <pre style="background:#090d16; padding:8px; border-radius:4px; font-size:12px; margin:0; white-space:pre-wrap; color:#cbd5e1;">${workout.desc}</pre>
+        `;
+        listEl.appendChild(item);
+    });
+
+    cardEl.style.display = 'block';
+}
 
 console.log("✅ [DEBUG] app.js terminou de carregar com sucesso!");
