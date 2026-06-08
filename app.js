@@ -212,10 +212,8 @@ function renderChart(wellnessData) {
                 display: true,
                 text: 'TSB (Forma)'
             },
-            // Garante que as linhas de grade do eixo direito não fiquem 
-            // cruzando e poluindo as linhas do eixo esquerdo
             grid: {
-                drawOnChartArea: false 
+                drawOnChartArea: false // Evita que as linhas do eixo direito cruzem o gráfico inteiro
             }
         }
     }
