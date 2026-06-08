@@ -175,20 +175,52 @@ function renderChart(wellnessData) {
         data: {
             labels: labels,
             datasets: [
-                { label: 'CTL', data: ctlData, borderColor: '#34c759', borderWidth: 2, pointRadius: 1, fill: false },
-                { label: 'ATL', data: atlData, borderColor: '#ff3b30', borderWidth: 1.5, pointRadius: 0, fill: false },
-                { label: 'TSB', data: tsbData, borderColor: '#00c7ff', borderWidth: 2, pointRadius: 1, backgroundColor: 'rgba(0, 199, 255, 0.1)', fill: true }
-            ]
+    {
+        label: 'CTL',
+        data: dadosCTL,
+        borderColor: '#10b981', // Verde
+        yAxisID: 'y' // Usa o eixo padrão da esquerda
+    },
+    {
+        label: 'ATL',
+        data: dadosATL,
+        borderColor: '#ef4444', // Vermelho
+        yAxisID: 'y' // Usa o eixo padrão da esquerda
+    },
+    {
+        label: 'TSB',
+        data: dadosTSB,
+        borderColor: '#3b82f6', // Azul
+        yAxisID: 'y1' // 🎯 CRUCIAL: Amarra o TSB ao eixo da direita!
+    }
+]
         },
         options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                x: { grid: { display: false }, ticks: { color: '#8e9aa8', font: { size: 9 } } },
-                y: { grid: { color: '#253140' }, ticks: { color: '#8e9aa8', font: { size: 9 } } }
+    responsive: true,
+    scales: {
+        y: {
+            type: 'linear',
+            position: 'left',
+            title: {
+                display: true,
+                text: 'CTL / ATL (Carga)'
+            }
+        },
+        y1: {
+            type: 'linear',
+            position: 'right',
+            title: {
+                display: true,
+                text: 'TSB (Forma)'
             },
-            plugins: { legend: { labels: { color: '#f5f7fa', boxWidth: 10, font: { size: 10 } } } }
+            // Garante que as linhas de grade do eixo direito não fiquem 
+            // cruzando e poluindo as linhas do eixo esquerdo
+            grid: {
+                drawOnChartArea: false 
+            }
         }
+    }
+}
     });
 }
 
