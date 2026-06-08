@@ -193,6 +193,7 @@ function renderChart(wellnessData) {
 }
 
 // === 8. ENVIO PARA GEMINI ===
+// === SUBSTITUA A FUNÇÃO sendMessage INTEIRA NO SEU APP.JS ===
 async function sendMessage() {
     const inputEl = document.getElementById('user-input');
     const btnEl = document.querySelector('.chat-input-container button');
@@ -222,7 +223,7 @@ async function sendMessage() {
     - Treinos Fortes / Intervalados / Ritmo Alto (Z4 ou superior): Use Potência (Watts) para treinos de ciclismo (foco em flutuações Over-Unders perto/acima do FTP no MyWhoosh) e Pace (min/km) para treinos de corrida.
 
     SINTAXE OBRIGATÓRIA DE TREINO (PADRÃO DE SCRIPT DO INTERVALS.ICU):
-    Para treinos de Ride (Ciclismo) e Run (Corrida), o campo "desc" NÃO PODE conter texto corrido ou parágrafos. Ele deve ser um script interpretável linha por linha seguindo estas regras exatas:
+    Para treinos de Ride (Ciclismo) e Run (Corrida), o campo "desc" NÃO P0DE conter texto corrido ou parágrafos. Ele deve ser um script interpretável linha por linha seguindo estas regras exatas:
     1. Cada bloco de tempo deve começar obrigatoriamente com um hífen e espaço, seguido da duração e do alvo (Ex: "- 10m Z1" ou "- 35m Z2 HR").
     2. Adicione descrições legíveis usando a tag 'text='. Exemplo: "- 5m Z1 text=Aquecimento girando leve"
     3. Para treinos baseados em Frequência Cardíaca (Z2/Leves), use o sufixo "HR". Exemplo: "- 30m Z2 HR text=Rodagem de Base"
@@ -250,14 +251,12 @@ async function sendMessage() {
     REGRA DO JSON: Se sugerires treinos, adicione as três barras no final da resposta exatamente assim:
     |||[{"date":"AAAA-MM-DD","type":"Run"|"Ride"|"Swim"|"WeightTraining","name":"Nome Curto","desc":"- 10m Z1 text=Aquecimento\\n3x\\n- 4m 95%\\n- 2m 105%\\n- 5m Z1"}]`;
 
-    // === COLOQUE ESTE BLOCO SUBSTIUINDO O TRY/CATCH DA FUNÇÃO sendMessage ===
     const requestBody = { contents: apiContents, systemInstruction: { parts: [{ text: systemInstruction }] } };
     try {
-        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(requestBody)
         });
         
-        // Diagnóstico avançado: se der erro, lê a mensagem real do Google
         if (!res.ok) {
             const errorDetails = await res.json().catch(() => ({}));
             const apiMessage = errorDetails.error?.message || `Status HTTP ${res.status}`;
@@ -267,47 +266,30 @@ async function sendMessage() {
         const data = await res.json();
         let coachText = data.candidates[0].content.parts[0].text;
         
+        // Sanatização avançada do JSON gerado
         if (coachText.includes('|||')) {
-            let partes = coachText.split('|||'); coachText = partes[0];
+            let partes = coachText.split('|||'); 
+            coachText = partes[0];
+            let rawJson = partes[1].trim();
+            
+            // 🛠️ Remove blocos de Markdown ocultos (```json ... ```) se existirem
+            rawJson = rawJson.replace(/^```json/i, '').replace(/^```/, '').replace(/```$/, '').trim();
+            
             try { 
-                pendingWorkoutsList = JSON.parse(partes[1].trim()); 
+                pendingWorkoutsList = JSON.parse(rawJson); 
                 renderPendingWorkouts(); 
-            } catch(e) { console.error(e); }
+            } catch(e) { 
+                console.error("Erro crítico ao parsear JSON tratado:", e);
+                showStatus('Erro: IA gerou estrutura inválida. Tente reenviar comando.', 'var(--danger-color)');
+            }
         }
         appendMessage('coach', coachText);
         chatHistory.push({ role: "model", parts: [{ text: coachText }] });
     } catch (err) {
-        // Exibe o erro real na tela do chat
         appendMessage('coach', `🚨 Erro na comunicação: ${err.message}`);
     } finally {
         inputEl.disabled = false; btnEl.disabled = false;
     }
-}
-
-function clearChat() {
-    chatHistory = [];
-    const box = document.getElementById('chat-box');
-    if (box) box.innerHTML = '<div class="message coach">Histórico limpo! Como posso ajudar com a sua planilha focada no Sprint Triathlon hoje?</div>';
-}
-
-function renderPendingWorkouts() {
-    const card = document.getElementById('validation-card');
-    const list = document.getElementById('preview-list');
-    if (!card || !list) return;
-    list.innerHTML = '';
-    
-    if (!pendingWorkoutsList || pendingWorkoutsList.length === 0) {
-        card.style.display = 'none';
-        return;
-    }
-    
-    pendingWorkoutsList.forEach(w => {
-        const item = document.createElement('div');
-        item.className = 'preview-workout-item';
-        item.innerHTML = `<strong>${w.date} - [${w.type}] ${w.name}</strong><pre>${w.desc}</pre>`;
-        list.appendChild(item);
-    });
-    card.style.display = 'block';
 }
 
 // === 9. ENVIO PARA INTERVALS.ICU ===
