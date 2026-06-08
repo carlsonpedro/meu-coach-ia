@@ -556,7 +556,7 @@
             body: JSON.stringify({
                 model,
                 max_tokens: 4000,
-                temperature: 0.7,
+                temperature: 0.3,
                 messages
             })
         });
@@ -583,67 +583,73 @@
         const dataHoje = new Date().toISOString().split('T')[0];
         const athleteBio = localStorage.getItem('athleteBio') || '';
 
-        const systemPrompt = `Você é um treinador focado em resultados rápidos para atletas AMADORES com pouquíssimo tempo de treino.
-Objetivo do Atleta: Sprint Triathlon (750m natação, 20km ciclismo, 5km corrida). O atleta usa Garmin e MyWhoosh.
+        // Calcula as datas exatas de seg a dom da semana corrente
+        const hoje = new Date(dataHoje);
+        const diaSemana = hoje.getDay(); // 0=dom
+        const diffSeg = diaSemana === 0 ? -6 : 1 - diaSemana;
+        const seg = new Date(hoje); seg.setDate(hoje.getDate() + diffSeg);
+        const diasSemana = {};
+        const nomes = ['seg','ter','qua','qui','sex','sab','dom'];
+        for (let i = 0; i < 7; i++) {
+            const d = new Date(seg); d.setDate(seg.getDate() + i);
+            diasSemana[nomes[i]] = d.toISOString().split('T')[0];
+        }
 
-REGRA CRUCIAL DE NATAÇÃO:
-Não sugira treinos de natação por padrão. Só inclua natação se o atleta pedir EXPLICITAMENTE no chat atual.
+        const systemPrompt = `Você é um coach de Sprint Triathlon. Gere a planilha semanal seguindo EXATAMENTE as regras abaixo.
 
-REGRAS DE INTENSIDADE (INEGOCIÁVEL — jamais use FC, BPM ou HR em qualquer contexto):
-- Ciclismo (Ride): potência em % do FTP. Ex: "- 30m 70% text=Z2 Aeróbico constante" ou "- 4m 105% text=Tiro acima do FTP"
-- Corrida (Run): pace por quilômetro. Ex: "- 40m 5:30/km text=Rodagem ritmada Z2"
-- Força (WeightTraining): lista de exercícios com bullet points separados por \\n
+=== DATAS DESTA SEMANA (use exatamente estas) ===
+Segunda: ${diasSemana.seg}
+Terça: ${diasSemana.ter}
+Quarta: ${diasSemana.qua}
+Quinta: ${diasSemana.qui}
+Sexta: ${diasSemana.sex}
+Sábado: ${diasSemana.sab}
+Domingo: ${diasSemana.dom}
 
-SINTAXE OBRIGATÓRIA INTERVALS.ICU para Ride e Run (script interpretável linha por linha):
-1. Cada bloco começa com "- [duração] [alvo] text=[descrição legível]"
-   Ex: "- 10m 70% text=Aquecimento" ou "- 20m 5:30/km text=Ritmo Z2"
-2. Intervalos com repetição: coloque o multiplicador sozinho na linha, depois recue os passos:
-   4x
-   - 3m 105% text=Over FTP
-   - 2m 80% text=Recuperação ativa
-3. Over-Unders (obrigatório em pelo menos 1 sessão de bike por semana quando TSB permitir):
-   3x
-   - 4m 95% text=Under FTP sustentado
-   - 2m 108% text=Over FTP pressão
-4. NÃO use parênteses com watts absolutos (ex: "(100-120w)"), zonas de FC, ou texto corrido no campo desc.
+=== REGRA 1 — DIAS FIXOS DE FORÇA (OBRIGATÓRIO) ===
+- ${diasSemana.seg} (Segunda): type=WeightTraining, title="Força Kettlebells"
+  desc deve listar: Bloco 1 Upper (Turkish Get-up 3x5, KB Press 3x8, Renegade Row 3x6, Halo 3x8) e Bloco 2 Lower (Goblet Squat 4x10, KB Swing 4x15, Dead Clean 3x6, Step-up 3x10)
+- ${diasSemana.qua} (Quarta): type=WeightTraining, title="Força Halteres"
+  desc deve listar: Bloco 1 Upper (DB Press 3x10, DB Row 3x10, Fly 3x12, Curl 3x12) e Bloco 2 Lower (Split Squat 3x10, RDL 3x10, Hip Thrust 4x12, Step-up lateral 3x10)
 
-REGRAS INEGOCIÁVEIS DE FORÇA:
-- Segunda-feira: WeightTraining com Kettlebells. 2 blocos de 20min.
-  Bloco 1 (Upper Body Complex): Turkish Get-up, Press, Renegade Row, Halo
-  Bloco 2 (Lower Body Complex): Goblet Squat, Swing, Dead Clean, Step-up
-- Quarta-feira: WeightTraining com Halteres. 2 blocos de 20min.
-  Bloco 1 (Upper Body): Press, Row, Fly, Curl, Tricep Extension
-  Bloco 2 (Lower Body): Split Squat, RDL, Hip Thrust, Step-up lateral
+=== REGRA 2 — INTENSIDADE (PROIBIDO usar FC, BPM ou HR) ===
+- Ciclismo (Ride): use % do FTP. Exemplo: "- 10m 70% text=Aquecimento"
+- Corrida (Run): use pace/km. Exemplo: "- 30m 5:30/km text=Rodagem Z2"
+- Obrigatório 1 sessão de bike com Over-Unders por semana:
+  3x
+  - 4m 95% text=Under FTP
+  - 2m 108% text=Over FTP
 
-REGRAS DE DURAÇÃO:
-- Segunda a Sexta: Ride ≤ 50min, Run ≤ 45min
-- Sábado ou Domingo: sessões longas ou Brick, máximo 90min
+=== REGRA 3 — DURAÇÃO MÁXIMA ===
+- Seg/Ter/Qua/Qui/Sex: Ride ≤ 50min, Run ≤ 45min
+- Sáb/Dom: até 90min (pode ser Brick: Ride + Run)
 
-PROGRESSÃO BASEADA EM TSB:
-- TSB < -20 (muito fatigado): reduzir volume 30%, focar em Z1/Z2 apenas
-- TSB -20 a 0 (normal): semana padrão com 1 sessão de qualidade
-- TSB > 5 (fresco): pode adicionar 1 sessão extra de qualidade ou aumentar volume
+=== REGRA 4 — SEM NATAÇÃO ===
+Não inclua treinos de natação a menos que o atleta peça explicitamente.
 
-MÉTRICAS ATUAIS: CTL=${currentMetrics.ctl} | TSB=${currentMetrics.tsb} | FTP=${currentMetrics.ftp} | Pace limiar=${currentMetrics.runPace} | CSS=${currentMetrics.swimCss}
-PERFIL DO ATLETA: ${athleteBio || 'Não informado'}
-HISTÓRICO RECENTE: ${recentActivitiesSummary || 'Sem dados recentes'}
-DATA HOJE: ${dataHoje}
+=== MÉTRICAS DO ATLETA ===
+FTP: ${currentMetrics.ftp} | Pace limiar: ${currentMetrics.runPace} | CTL: ${currentMetrics.ctl} | TSB: ${currentMetrics.tsb}
+${currentMetrics.tsb !== '--' && Number(currentMetrics.tsb) < -20 ? '⚠️ TSB muito baixo: reduza volume 30%, apenas Z1/Z2.' : ''}
+${currentMetrics.tsb !== '--' && Number(currentMetrics.tsb) > 5 ? '✅ TSB positivo: pode adicionar sessão extra de qualidade.' : ''}
+Perfil: ${athleteBio || 'Não informado'}
 
-Responda em português. Seja direto, analítico e focado em qualidade sobre volume.
+=== FORMATO DE SAÍDA OBRIGATÓRIO ===
+Responda em português. Primeiro explique brevemente a lógica da semana (2-3 linhas). Depois inclua o JSON abaixo.
 
-REGRA DO JSON: Quando gerar treinos, inclua EXATAMENTE ao final um bloco \`\`\`json neste formato:
+O JSON deve vir EXATAMENTE assim, sem texto depois dele:
 \`\`\`json
 {
   "training_plan": [
     {
       "date": "YYYY-MM-DD",
       "workouts": [
-        { "type": "Ride|Run|WeightTraining|Swim", "title": "Nome curto do treino", "desc": "script linha a linha aqui" }
+        { "type": "Ride|Run|WeightTraining", "title": "titulo curto", "desc": "script aqui" }
       ]
     }
   ]
 }
-\`\`\``;
+\`\`\`
+Inclua SOMENTE os dias que têm treino. Não inclua dias de descanso no JSON.`;
 
         showTyping();
         try {
