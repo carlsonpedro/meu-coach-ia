@@ -121,11 +121,19 @@
             <div class="mt-1.5 space-y-1">
                 <label class="text-[9px] uppercase font-bold text-muted tracking-wide block">Modelo</label>
                 <select id="groq-model" class="w-full bg-card border border-border rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-accent outline-none transition-all">
-                    <option value="llama-3.3-70b-versatile">llama-3.3-70b-versatile (recomendado)</option>
-                    <option value="llama3-70b-8192">llama3-70b-8192</option>
-                    <option value="llama3-8b-8192">llama3-8b-8192 (mais rápido)</option>
-                    <option value="mixtral-8x7b-32768">mixtral-8x7b-32768</option>
-                    <option value="gemma2-9b-it">gemma2-9b-it</option>
+                    <optgroup label="── Recomendados ──" style="color:#4a6070">
+                        <option value="llama-3.3-70b-versatile">llama-3.3-70b-versatile ⭐ melhor custo-benefício</option>
+                        <option value="openai/gpt-oss-120b">gpt-oss-120b · máxima inteligência</option>
+                        <option value="meta-llama/llama-4-scout-17b-16e-instruct">llama-4-scout-17b · contexto longo</option>
+                    </optgroup>
+                    <optgroup label="── Rápidos ──" style="color:#4a6070">
+                        <option value="openai/gpt-oss-20b">gpt-oss-20b · muito rápido</option>
+                        <option value="meta-llama/llama-3.1-8b-instant">llama-3.1-8b · mais rápido</option>
+                    </optgroup>
+                    <optgroup label="── Raciocínio ──" style="color:#4a6070">
+                        <option value="qwen/qwen3-32b">qwen3-32b · raciocínio</option>
+                        <option value="deepseek-r1-distill-llama-70b">deepseek-r1-70b · raciocínio</option>
+                    </optgroup>
                 </select>
             </div>
         </div>
