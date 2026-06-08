@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>AI Triathlon Coach - Pro Edition</title>
+    
+    <!-- Tailwind CSS para estilização rápida e responsiva -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js para renderização do gráfico de performance -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        darkBg: '#0b0f17',
+                        cardBg: '#131a26',
+                        accent: '#00c7ff',
+                        success: '#10b981',
+                        danger: '#ef4444',
+                        warning: '#f59e0b',
+                        borderClr: '#1f293d'
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #0b0f17;
+            -webkit-tap-highlight-color: transparent;
+        }
+        /* Custom scrollbar para visual limpo no celular */
+        ::-webkit-scrollbar {
+            width: 5px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0b0f17;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #1f293d;
+            border-radius: 99px;
+        }
+    </style>
+</head>
+<body class="text-slate-100 min-h-screen p-4 pb-12 font-sans antialiased">
+
+<div class="max-w-md mx-auto space-y-4">
+    <!-- Cabeçalho Principal -->
+    <header class="text-center py-2">
+        <h1 class="text-2xl font-black tracking-tight text-white">COACH DE TRIATLO <span class="text-accent">IA</span></h1>
+        <p class="text-xs text-slate-400 mt-1 uppercase tracking-widest font-semibold">Sprint Triathlon Specialist</p>
+    </header>
+
+    <!-- Configurações (Retrátil) -->
+    <details class="bg-cardBg border border-borderClr rounded-2xl overflow-hidden group">
+        <summary class="p-4 text-xs font-bold uppercase tracking-wider text-slate-400 cursor-pointer select-none hover:bg-slate-800/30 transition-all flex justify-between items-center">
+            <span>⚙️ Configurações de API & Perfil</span>
+            <span class="text-accent transition-transform group-open:rotate-180">▼</span>
+        </summary>
+        <div class="p-4 border-t border-borderClr bg-darkBg/50 space-y-3">
+            <div class="grid grid-cols-2 gap-3">
+                <div class="space-y-1">
+                    <label class="text-[10px] uppercase font-bold text-slate-400 tracking-wide">ID do Atleta (Intervals)</label>
+                    <input type="text" id="athlete-id" placeholder="Ex: i12345" class="w-full bg-cardBg border border-borderClr rounded-xl p-2 text-sm text-white focus:border-accent outline-none transition-all">
+                </div>
+                <div class="space-y-1">
+                    <label class="text-[10px] uppercase font-bold text-slate-400 tracking-wide">API Key (Intervals)</label>
+                    <input type="password" id="intervals-key" placeholder="API Key" class="w-full bg-cardBg border border-borderClr rounded-xl p-2 text-sm text-white focus:border-accent outline-none transition-all">
+                </div>
+            </div>
+            <div class="space-y-1">
+                <label class="text-[10px] uppercase font-bold text-slate-400 tracking-wide">Gemini API Key</label>
+                <input type="password" id="gemini-key" placeholder="Insira sua chave do Google AI Studio" class="w-full bg-cardBg border border-borderClr rounded-xl p-2 text-sm text-white focus:border-accent outline-none transition-all">
+            </div>
+            <div class="space-y-1">
+                <label class="text-[10px] uppercase font-bold text-slate-400 tracking-wide">Preferências & Restrições Físicas</label>
+                <textarea id="athlete-bio" placeholder="Ex: Equipamentos disponíveis, dores, foco em cansaço..." class="w-full bg-cardBg border border-borderClr rounded-xl p-2 text-sm text-white focus:border-accent outline-none transition-all h-16 resize-none"></textarea>
+            </div>
+            <button onclick="saveSettings()" class="w-full bg-success text-darkBg font-black text-xs uppercase tracking-wider py-2.5 rounded-xl hover:opacity-90 transition-all">
+                Salvar Configurações
+            </button>
+        </div>
+    </details>
+
+    <!-- Métricas Atuais (Intervals.icu) -->
+    <div class="bg-cardBg border border-borderClr rounded-2xl p-4 space-y-4 shadow-xl">
+        <div class="flex justify-between items-center">
+            <h2 class="text-xs uppercase font-bold tracking-wider text-slate-400">Status de Carga & Balanço</h2>
+            <span id="status-indicator" class="text-[10px] font-black uppercase tracking-widest text-slate-500">Desconectado</span>
+        </div>
+        
+        <div class="grid grid-cols-3 gap-2">
+            <div class="bg-darkBg border border-borderClr/50 rounded-xl p-3 text-center">
+                <div id="metric-ctl" class="text-xl font-black text-white">--</div>
+                <div class="text-[9px] uppercase font-bold text-slate-400 tracking-wide">Fitness (CTL)</div>
+            </div>
+            <div class="bg-darkBg border border-borderClr/50 rounded-xl p-3 text-center">
+                <div id="metric-atl" class="text-xl font-black text-white">--</div>
+                <div class="text-[9px] uppercase font-bold text-slate-400 tracking-wide">Fadiga (ATL)</div>
+            </div>
+            <div class="bg-darkBg border border-borderClr/50 rounded-xl p-3 text-center">
+                <div id="metric-tsb" class="text-xl font-black text-white">--</div>
+                <div class="text-[9px] uppercase font-bold text-slate-400 tracking-wide">Forma (TSB)</div>
+            </div>
+        </div>
+
+        <div class="border-t border-borderClr/50 pt-3 grid grid-cols-3 gap-2">
+            <div class="bg-darkBg/40 rounded-xl p-2 text-center">
+                <div id="metric-ftp" class="text-sm font-bold text-warning">--</div>
+                <div class="text-[8px] uppercase font-bold text-slate-500 tracking-wide">FTP (Bike)</div>
+            </div>
+            <div class="bg-darkBg/40 rounded-xl p-2 text-center">
+                <div id="metric-rpace" class="text-sm font-bold text-warning">--</div>
+                <div class="text-[8px] uppercase font-bold text-slate-500 tracking-wide">Limiar (Corrida)</div>
+            </div>
+            <div class="bg-darkBg/40 rounded-xl p-2 text-center">
+                <div id="metric-swimcss" class="text-sm font-bold text-warning">--</div>
+                <div class="text-[8px] uppercase font-bold text-slate-500 tracking-wide">CSS (Natação)</div>
+            </div>
+        </div>
+
+        <button onclick="fetchIntervalsData()" class="w-full bg-slate-800 border border-borderClr/80 text-accent font-black text-xs uppercase tracking-widest py-2 rounded-xl hover:bg-slate-700 transition-all">
+            Sincronizar Dados Completos
+        </button>
+        <div id="status-message" class="text-center text-[11px] font-semibold text-slate-500"></div>
+    </div>
+
+    <!-- Gráfico de Evolução -->
+    <div class="bg-cardBg border border-borderClr rounded-2xl p-4 shadow-xl">
+        <h2 class="text-xs uppercase font-bold tracking-wider text-slate-400 mb-3">Evolução de Carga (Últimos Dias)</h2>
+        <div class="relative w-full h-40">
+            <canvas id="evolutionChart"></canvas>
+        </div>
+    </div>
+
+    <!-- Card de Validação de Planilha -->
+    <div id="validation-card" class="bg-cardBg border-2 border-warning/60 rounded-2xl p-4 shadow-2xl space-y-3 hidden animate-pulse-slow">
+        <div class="flex items-center gap-2 border-b border-borderClr pb-2">
+            <span class="text-lg">📋</span>
+            <h2 class="text-xs uppercase font-black tracking-widest text-warning">Planilha Gerada - Validação Obrigatória</h2>
+        </div>
+        
+        <!-- Onde os blocos de treinos estruturados serão desenhados -->
+        <div id="pending-workouts-list" class="space-y-2.5 max-h-60 overflow-y-auto pr-1"></div>
+        
+        <button onclick="approvePendingWorkouts()" class="w-full bg-success text-darkBg font-black text-sm uppercase tracking-widest py-3 rounded-xl hover:opacity-90 transition-all shadow-lg shadow-success/15">
+            Aprovar e Enviar para o Garmin
+        </button>
+    </div>
+
+    <!-- Chat do Treinador -->
+    <div class="bg-cardBg border border-borderClr rounded-2xl p-4 shadow-xl flex flex-col space-y-3">
+        <div class="flex justify-between items-center border-b border-borderClr pb-2">
+            <h2 class="text-xs uppercase font-bold tracking-wider text-slate-400">Conversar com o Treinador</h2>
+            <button onclick="clearChat()" class="text-[10px] font-bold text-danger uppercase hover:underline">Limpar</button>
+        </div>
+
+        <div id="chat-box" class="h-64 overflow-y-auto bg-darkBg/60 border border-borderClr rounded-xl p-3 space-y-3 flex flex-col text-sm">
+            <div class="message coach bg-slate-800/70 text-slate-200 p-3 rounded-2xl rounded-bl-none max-w-[85%] self-start leading-relaxed shadow-sm">
+                Olá! Sincronize seus dados nas configurações acima e peça para eu gerar o bloco de treinos estruturados da sua semana.
+            </div>
+        </div>
+
+        <div class="flex gap-2">
+            <input type="text" id="user-input" placeholder="Peça a planilha da semana ou tire dúvidas..." onkeypress="if(event.key === 'Enter') sendMessage()" class="flex-1 bg-darkBg border border-borderClr rounded-full px-4 py-3 text-sm text-white focus:border-accent outline-none transition-all">
+            <button onclick="sendMessage()" class="bg-accent text-darkBg w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg hover:opacity-90 active:scale-95 transition-all">➔</button>
+        </div>
+    </div>
+</div>
+
+<!-- Lógica de Operações Integrada -->
+<script>
+    let currentMetrics = { ctl: '--', atl: '--', tsb: '--', ftp: '--', runPace: '--', swimCss: '--' };
+    let chatHistory = [];
+    let recentActivitiesSummary = "";
+    let pendingWorkoutsList = [];
+    let evolutionChartInstance = null;
+
+    function formatCoachMarkdown(text) {
+        if (!text) return "";
+        let safeText = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        
+        // Formata os títulos e subtítulos gerados pela IA
+        safeText = safeText.replace(/^### (.*?)$/gm, '<h4 class="text-accent font-black tracking-wide text-xs mt-3 mb-1 uppercase">$1</h4>');
+        safeText = safeText.replace(/^## (.*?)$/gm, '<h3 class="text-white font-extrabold text-sm mt-4 mb-1 border-b border-borderClr pb-0.5">$1</h3>');
+        safeText = safeText.replace(/^# (.*?)$/gm, '<h2 class="text-white font-black text-base mt-4 mb-2 uppercase">$1</h2>');
+        
+        // Formata os itens de lista para visualização limpa
+        safeText = safeText.replace(/^\* (.*?)$/gm, '<div class="flex items-start gap-2 my-1 text-xs text-slate-300"><span class="text-accent">•</span><span>$1</span></div>');
+        safeText = safeText.replace(/^- (.*?)$/gm, '<div class="flex items-start gap-2 my-1 text-xs text-slate-300"><span class="text-accent">•</span><span>$1</span></div>');
+        
+        // Negrito
+        safeText = safeText.replace(/\*\*(.*?)\*\*/g, '<strong class="text-white font-bold">$1</strong>');
+        
+        // Conversão de quebras de linha
+        safeText = safeText.replace(/\n/g, '<br>');
+        return safeText;
+    }
+
+    function appendMessage(sender, text) {
+        const chatBox = document.getElementById('chat-box');
+        if (!chatBox) return;
+        const msgDiv = document.createElement('div');
+        msgDiv.className = `message ${sender} p-3 rounded-2xl max-w-[85%] leading-relaxed shadow-sm ${
+            sender === 'user' 
+                ? 'bg-accent text-darkBg font-medium self-end rounded-br-none' 
+                : 'bg-slate-800/80 text-slate-200 self-start rounded-bl-none'
+        }`;
+        msgDiv.innerHTML = sender === 'coach' ? formatCoachMarkdown(text) : text;
+        chatBox.appendChild(msgDiv); 
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    function showStatus(text, color) {
+        const el = document.getElementById('status-message');
+        if (el) {
+            el.innerText = text; 
+            el.style.color = color || 'var(--text-muted)';
+        }
+    }
+
+    function updateTSBDisplay(tsb) {
+        const tsbEl = document.getElementById('metric-tsb'); 
+        if (!tsbEl) return;
+        tsbEl.innerText = tsb;
+        if (tsb < -20) tsbEl.style.color = 'var(--danger-color)';
+        else if (tsb >= -20 && tsb <= 5) tsbEl.style.color = 'var(--success-color)';
+        else tsbEl.style.color = 'var(--accent-color)';
+    }
+
+    function calculateFallbackThresholds(ctl) {
+        let baseFtp = 150 + (ctl * 1.5);
+        let basePaceSegundos = 360 - (ctl * 1.2); 
+        let cssSegundosCem = 130 - (ctl * 0.3);
+        
+        if(!currentMetrics.ftp || currentMetrics.ftp === '--') currentMetrics.ftp = Math.round(baseFtp) + "W";
+        
+        if(!currentMetrics.runPace || currentMetrics.runPace === '--') {
+            let min = Math.floor(basePaceSegundos / 60); 
+            let seg = Math.round(basePaceSegundos % 60).toString().padStart(2, '0');
+            currentMetrics.runPace = `${min}:${seg}/km`;
+        }
+        
+        if(!currentMetrics.swimCss || currentMetrics.swimCss === '--') {
+            let minS = Math.floor(cssSegundosCem / 60); 
+            let segS = Math.round(cssSegundosCem % 60).toString().padStart(2, '0');
+            currentMetrics.swimCss = `${minS}:${segS}/100m`;
+        }
+    }
+
+    function renderChart(wellnessData) {
+        const el = document.getElementById('evolutionChart');
+        if (!el) return;
+        const ctx = el.getContext('2d');
+        const ultimosDias = wellnessData.slice(-15);
+        
+        const labels = ultimosDias.map(d => d.id.substring(5));
+        const ctlData = ultimosDias.map(d => Math.round(d.ctl || d.ctlLoad || 0));
+        const atlData = ultimosDias.map(d => Math.round(d.atl || d.atlLoad || 0));
+        const tsbData = ctlData.map((c, i) => c - atlData[i]);
+
+        if (evolutionChartInstance) evolutionChartInstance.destroy();
+
+        evolutionChartInstance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: labels,
+                datasets: [
+                    {
+                        label: 'CTL (Fitness)',
+                        data: ctlData,
+                        borderColor: '#10b981',
+                        backgroundColor: '#10b981',
+                        borderWidth: 2,
+                        pointRadius: 1,
+                        fill: false,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'ATL (Fadiga)',
+                        data: atlData,
+                        borderColor: '#ef4444',
+                        backgroundColor: '#ef4444',
+                        borderWidth: 1.5,
+                        pointRadius: 0,
+                        fill: false,
+                        yAxisID: 'y'
+                    },
+                    {
+                        label: 'TSB (Forma)',
+                        data: tsbData,
+                        borderColor: '#00c7ff',
+                        backgroundColor: 'rgba(0, 199, 255, 0.05)',
+                        borderWidth: 2,
+                        pointRadius: 2,
+                        fill: true,
+                        yAxisID: 'y1' // Eixo da direita
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    x: {
+                        grid: { display: false },
+                        ticks: { color: '#8e9aa8', font: { size: 9 } }
+                    },
+                    y: {
+                        type: 'linear',
+                        position: 'left',
+                        grid: { color: '#1f293d' },
+                        ticks: { color: '#10b981', font: { size: 9 } },
+                        title: { display: true, text: 'CTL / ATL', color: '#10b981', font: { size: 9, weight: 'bold' } }
+                    },
+                    y1: {
+                        type: 'linear',
+                        position: 'right',
+                        grid: { display: false },
+                        ticks: { color: '#00c7ff', font: { size: 9 } },
+                        title: { display: true, text: 'TSB (Forma)', color: '#00c7ff', font: { size: 9, weight: 'bold' } }
+                    }
+                },
+                plugins: {
+                    legend: {
+                        labels: { color: '#f5f7fa', boxWidth: 8, font: { size: 9 } }
+                    }
+                }
+            }
+        });
+    }
+
+    async function fetchIntervalsData() {
+        const athleteId = localStorage.getItem('athleteId');
+        const intervalsKey = localStorage.getItem('intervalsKey');
+        if (!athleteId || !intervalsKey) return;
+
+        showStatus('Sincronizando dados...', '#00c7ff');
+        const authHeader = { 'Authorization': `Basic ${btoa(`API_KEY:${intervalsKey}`)}` };
+        
+        try {
+            const res = await fetch(`https://intervals.icu/api/v1/athlete/${athleteId}/wellness`, { method: 'GET', headers: authHeader });
+            if (!res.ok) throw new Error('Não foi possível conectar com o Intervals.icu.');
+            const wellnessData = await res.json();
+            
+            if (wellnessData && wellnessData.length > 0) {
+                let ultimoDia = wellnessData.slice().reverse().find(dia => (dia.ctl || dia.ctlLoad) > 0);
+                if (ultimoDia) {
+                    currentMetrics.ctl = Math.round(ultimoDia.ctl || ultimoDia.ctlLoad);
+                    currentMetrics.atl = Math.round(ultimoDia.atl || ultimoDia.atlLoad || 0);
+                    currentMetrics.tsb = currentMetrics.ctl - currentMetrics.atl;
+                }
+                renderChart(wellnessData);
+            }
+
+            try {
+                const resA = await fetch(`https://intervals.icu/api/v1/athlete/${athleteId}`, { method: 'GET', headers: authHeader });
+                if (resA.ok) {
+                    const dataA = await resA.json();
+                    if (dataA.icu_ftp) currentMetrics.ftp = dataA.icu_ftp + "W";
+                }
+            } catch (e) {}
+
+            calculateFallbackThresholds(currentMetrics.ctl === '--' ? 20 : currentMetrics.ctl);
+
+            document.getElementById('metric-ctl').innerText = currentMetrics.ctl;
+            document.getElementById('metric-atl').innerText = currentMetrics.atl;
+            updateTSBDisplay(currentMetrics.tsb);
+            document.getElementById('metric-ftp').innerText = currentMetrics.ftp;
+            document.getElementById('metric-rpace').innerText = currentMetrics.runPace;
+            document.getElementById('metric-swimcss').innerText = currentMetrics.swimCss;
+
+            document.getElementById('status-indicator').innerText = "Conectado";
+            document.getElementById('status-indicator').className = "text-[10px] font-black uppercase tracking-widest text-success";
+            showStatus('Métricas sincronizadas!', '#10b981');
+        } catch (error) { 
+            showStatus(`Erro: ${error.message}`, '#ef4444'); 
+        }
+    }
+
+    async function sendMessage() {
+        const inputEl = document.getElementById('user-input');
+        const btnEl = document.querySelector('.chat-input-container button');
+        if (!inputEl) return;
+        
+        const userText = inputEl.value.trim();
+        const geminiKey = localStorage.getItem('geminiKey');
+        const athleteBio = localStorage.getItem('athleteBio') || "";
+
+        if (!userText || !geminiKey) return;
+
+        inputEl.disabled = true;
+        appendMessage('user', userText); inputEl.value = '';
+
+        chatHistory.push({ role: "user", parts: [{ text: userText }] });
+        let apiContents = JSON.parse(JSON.stringify(chatHistory.slice(-3)));
+        const dataHoje = new Date().toISOString().split('T')[0];
+
+        const systemInstruction = `És um treinador focado em resultados rápidos para atletas AMADORES com pouquíssimo tempo de treino.
+        Objetivo do Atleta: Sprint Triathlon (750m natação, 20km ciclismo, 5km corrida). O atleta usa Garmin e MyWhoosh.
+        
+        REGRA CRUCIAL DE NATAÇÃO:
+        - NÃO sugira treinos de natação (Swim) por padrão na planilha. O atleta só fará natação quando deixar isso EXPLICITO no comentário/prompt atual do chat. Se ele não pedir, foque apenas em Ciclismo, Corrida e Força.
+
+        DIRETRIZES DE INTENSIDADE PARA O GARMIN/INTERVALS (INEGOCIÁVEL):
+        - NÃO UTILIZE FREQUÊNCIA CARDÍACA (HR, BPM OU SUFIXO "HR") EM NENHUMA HIPÓTESE.
+        - Treinos de Ciclismo (Ride): Use estritamente Potência baseada em porcentagem do FTP. Exemplo: "- 30m 70% text=Z2 Aeróbico constante" ou "- 4m 105% text=Tiro acima do FTP".
+        - Treinos de Corrida (Run): Use estritamente Pace por quilômetro formatado de forma explícita. Exemplo: "- 40m 5:30/km text=Rodagem ritmada Z2".
+        - Treinos de Força (WeightTraining): Use bullet points simples separados por quebra de linha (\\n) para listar os exercícios nos blocos.
+
+        SINTAXE OBRIGATÓRIA DE TREINO (PADRÃO DE SCRIPT DO INTERVALS.ICU):
+        Para treinos de Ride e Run, o campo "desc" NÃO PODE conter texto corrido, parênteses de watts (como 100-120w) ou nomes de zonas de FC. Ele deve ser um script interpretável linha por linha seguindo estas regras exatas:
+        1. Cada bloco de tempo deve começar obrigatoriamente com um hífen e espaço, seguido da duração e do alvo (Ex: "- 10m 70%" ou "- 20m 5:30/km").
+        2. Adicione descrições legíveis usando a tag 'text='. Exemplo: "- 5m 55% text=Aquecimento girando leve"
+        3. Para blocos intervalados, coloque o multiplicador de repetição na linha superior e recue os passos. Exemplo de Over-Unders:
+           3x
+           - 4m 95% text=Under FTP
+           - 2m 105% text=Over FTP
+        4. Treinos de Força (WeightTraining) não geram gráficos, então liste os exercícios com bullet points comuns separados por quebra de linha (\\n).
+
+        REGRAS INEGOCIÁVEIS DE FORÇA NA SEMANA:
+        - Segunda-feira: Treino de Força com Kettlebells obrigatório. Dividido rigidamente em 2 blocos de 20 minutos. Bloco 1: Upper Body Complex. Bloco 2: Lower Body Complex.
+        - Quarta-feira: Treino de Força com Halteres obrigatório. Dividido rigidamente em 2 blocos de 20 minutos. Bloco 1: Upper Body. Bloco 2: Lower Body.
+        
+        REGRAS RÍGIDAS DE DURAÇÃO E TEMPO:
+        - Durante os dias de semana (Segunda a Sexta): Os treinos de ciclismo (Ride) não podem passar de 50 minutos e os treinos de corrida (Run) não podem passar de 45 minutos.
+        - Nos finais de semana (Sábado ou Domingo): Permitir sessões mais longas de endurance ou transições (ex: Brick), respeitando o limite máximo de até 1h30 (90 minutos).
+
+        Métricas atuais: CTL: ${currentMetrics.ctl}, TSB: ${currentMetrics.tsb}. Limiares: FTP: ${currentMetrics.ftp} | Pace: ${currentMetrics.runPace} | CSS: ${currentMetrics.swimCss}.
+        Restrições Extras: ${athleteBio}
+        Últimos treinos: \n${recentActivitiesSummary || "Sem histórico recente."}
+
+        A data de HOJE é: ${dataHoje}. Calcule as datas da semana estritamente a partir disso. Responde em português de forma direta, analítica e focada em qualidade sobre volume.
+
+        REGRA DO JSON: Se sugerires treinos, adicione a estrutura de dados em formato JSON válida no final da resposta exatamente dentro do bloco de código \`\`\`json.`;
+
+        const requestBody = { contents: apiContents, systemInstruction: { parts: [{ text: systemInstruction }] } };
+        
+        appendMessage('coach', '⏳ Planejando e calculando zonas de esforço...');
+        
+        try {
+            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(requestBody)
+            });
+            
+            const loadingBox = document.getElementById('chat-box').lastChild;
+            if (loadingBox && loadingBox.innerText.includes('⏳')) loadingBox.remove();
+
+            if (!res.ok) {
+                const errorDetails = await res.json().catch(() => ({}));
+                const apiMessage = errorDetails.error?.message || `Status HTTP ${res.status}`;
+                throw new Error(apiMessage);
+            }
+            
+            const data = await res.json();
+            let coachText = data.candidates[0].content.parts[0].text;
+            let rawJson = "";
+
+            const mdMatch = coachText.match(/```(?:json)?([\s\S]*?)```/i);
+            if (mdMatch) {
+                rawJson = mdMatch[1].trim();
+                coachText = coachText.replace(/```(?:json)?[\s\S]*?```/gi, '').trim();
+            } else if (coachText.includes('|||')) {
+                let partes = coachText.split('|||');
+                coachText = partes[0];
+                rawJson = partes[1].trim();
+            }
+
+            coachText = coachText.replace(/\|\|\|/g, '').trim();
+
+            if (rawJson) {
+                rawJson = rawJson.replace(/"desc"\s*:\s*"([\s\S]*?)"/g, (match, p1) => {
+                    const textTratado = p1.replace(/\n/g, '\\n').replace(/\r/g, '');
+                    return `"desc": "${textTratado}"`;
+                });
+                
+                rawJson = rawJson.replace(/,\s*([\]}])/g, '$1');
+
+                try { 
+                    const parsed = JSON.parse(rawJson);
+                    let listaPlana = [];
+
+                    if (parsed.training_plan && Array.isArray(parsed.training_plan)) {
+                        parsed.training_plan.forEach(day => {
+                            const dataTreino = day.date;
+                            if (day.workouts && Array.isArray(day.workouts)) {
+                                day.workouts.forEach(w => {
+                                    listaPlana.push({
+                                        date: dataTreino,
+                                        type: w.type,
+                                        name: w.title || w.name || "Treino Estruturado",
+                                        desc: w.desc
+                                    });
+                                });
+                            }
+                        });
+                    } else if (Array.isArray(parsed)) {
+                        listaPlana = parsed.map(w => ({
+                            date: w.date,
+                            type: w.type,
+                            name: w.name || w.title || "Treino Estruturado",
+                            desc: w.desc
+                        }));
+                    }
+
+                    pendingWorkoutsList = listaPlana; 
+                    renderPendingWorkouts();
+
+                } catch(e) { 
+                    console.error("❌ Falha no processamento do JSON:", e);
+                    showStatus('Erro ao estruturar os treinos. Tente novamente.', 'var(--danger-color)');
+                }
+            }
+
+            appendMessage('coach', coachText || "Aqui estão os seus treinos estruturados para validação:");
+            chatHistory.push({ role: "model", parts: [{ text: data.candidates[0].content.parts[0].text }] });
+        } catch (error) {
+            console.error("Erro na API:", error);
+            const loadingBox = document.getElementById('chat-box').lastChild;
+            if (loadingBox && loadingBox.innerText.includes('⏳')) loadingBox.remove();
+            showStatus('Instabilidade na rede. Reenvie o comando.', '#ef4444');
+            appendMessage('coach', `🚨 Erro na comunicação com os servidores. Por favor, reenvie a mensagem.`);
+        } finally {
+            inputEl.disabled = false; if(btnEl) btnEl.disabled = false; inputEl.focus();
+        }
+    }
+
+    async function clearWorkoutsForPeriod(startDate, endDate) {
+        const athleteId = localStorage.getItem('athleteId');
+        const intervalsKey = localStorage.getItem('intervalsKey');
+        if (!athleteId || !intervalsKey) return;
+
+        showStatus('Limpando agenda antiga da semana...', '#f59e0b');
+        const authHeader = { 'Authorization': `Basic ${btoa(`API_KEY:${intervalsKey}`)}` };
+        const urlGet = `https://intervals.icu/api/v1/athlete/${athleteId}/events?oldest=${startDate}&newest=${endDate}`;
+
+        try {
+            const res = await fetch(urlGet, { method: 'GET', headers: authHeader });
+            if (!res.ok) return;
+            
+            const events = await res.json();
+            const workoutsToDelete = events.filter(e => e.category === 'WORKOUT' || e.type === 'WeightTraining');
+
+            for (const workout of workoutsToDelete) {
+                const urlDelete = `https://intervals.icu/api/v1/athlete/${athleteId}/events/${workout.id}`;
+                await fetch(urlDelete, { method: 'DELETE', headers: authHeader });
+            }
+            console.log(`🧹 Purge concluído: ${workoutsToDelete.length} itens obsoletos limpos.`);
+        } catch (err) {
+            console.error('Erro de limpeza:', err);
+        }
+    }
+
+    async function uploadWorkouts() {
+        const athleteId = localStorage.getItem('athleteId');
+        const intervalsKey = localStorage.getItem('intervalsKey');
+        
+        if (!athleteId || !intervalsKey || pendingWorkoutsList.length === 0) return;
+
+        const btnEl = document.querySelector('#validation-card button');
+        if (btnEl) btnEl.disabled = true;
+
+        // 1. Purga os treinos existentes no período para evitar duplicações
+        const datas = pendingWorkoutsList.map(w => w.date).sort();
+        await clearWorkoutsForPeriod(datas[0], datas[datas.length - 1]);
+        
+        showStatus('Enviando treinos atualizados para o Garmin...', '#00c7ff');
+        const authHeader = { 
+            'Authorization': `Basic ${btoa(`API_KEY:${intervalsKey}`)}`,
+            'Content-Type': 'application/json'
+        };
+
+        let successes = 0;
+        for (const w of pendingWorkoutsList) {
+            let tipoCorrigido = w.type;
+            if (tipoCorrigido === 'Strength' || tipoCorrigido === 'Strength/Força') {
+                tipoCorrigido = 'WeightTraining';
+            }
+
+            const payload = {
+                category: 'WORKOUT',
+                start_date_local: `${w.date}T06:00:00`,
+                type: tipoCorrigido,
+                name: w.name,
+                description: w.desc
+            };
+
+            try {
+                const res = await fetch(`https://intervals.icu/api/v1/athlete/${athleteId}/events`, {
+                    method: 'POST', headers: authHeader, body: JSON.stringify(payload)
+                });
+                if (res.ok) successes++;
+            } catch (e) {
+                console.error(e);
+            }
+        }
+
+        if (successes > 0) {
+            showStatus(`${successes} treinos carregados!`, '#10b981');
+            appendMessage('coach', `🎯 Sensacional! Limpei os treinos antigos e salvei com sucesso ${successes} novo(s) treino(s) diretamente na agenda do seu Garmin.`);
+            pendingWorkoutsList = [];
+            renderPendingWorkouts();
+            fetchIntervalsData();
+        } else {
+            showStatus('Erro no carregamento.', '#ef4444');
+            if (btnEl) btnEl.disabled = false;
+        }
+    }
+
+    function approvePendingWorkouts() { uploadWorkouts(); }
+
+    function renderPendingWorkouts() {
+        const cardEl = document.getElementById('validation-card');
+        const listEl = document.getElementById('pending-workouts-list');
+        if (!cardEl || !listEl) return;
+
+        listEl.innerHTML = '';
+
+        if (!pendingWorkoutsList || pendingWorkoutsList.length === 0) {
+            cardEl.classList.add('hidden');
+            return;
+        }
+
+        pendingWorkoutsList.forEach((workout) => {
+            const item = document.createElement('div');
+            item.className = "bg-darkBg/60 p-3 rounded-xl border border-borderClr space-y-1.5 text-xs";
+            
+            // Atribui uma cor de borda de acordo com o esporte
+            let borderColor = 'border-l-4 border-l-success';
+            if (workout.type === 'Run') borderColor = 'border-l-4 border-l-accent';
+            if (workout.type === 'WeightTraining' || workout.type === 'Strength') borderColor = 'border-l-4 border-l-purple-500';
+            item.className += ` ${borderColor}`;
+
+            item.innerHTML = `
+                <div class="flex justify-between items-center font-bold">
+                    <span class="text-white">📅 ${workout.date} - ${workout.name}</span>
+                    <span class="text-slate-400 uppercase text-[9px] tracking-wider">${workout.type}</span>
+                </div>
+                <pre class="text-[10px] text-slate-300 bg-black/40 p-2 rounded-lg font-mono leading-relaxed overflow-x-auto whitespace-pre-wrap">${workout.desc}</pre>
+            `;
+            listEl.appendChild(item);
+        });
+
+        cardEl.classList.remove('hidden');
+        cardEl.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function saveSettings() {
+        localStorage.setItem('athleteId', document.getElementById('athlete-id').value.trim());
+        localStorage.setItem('intervalsKey', document.getElementById('intervals-key').value.trim());
+        localStorage.setItem('geminiKey', document.getElementById('gemini-key').value.trim());
+        localStorage.setItem('athleteBio', document.getElementById('athlete-bio').value.trim());
+        showStatus('Configurações salvas!', '#10b981');
+        fetchIntervalsData();
+    }
+
+    function clearChat() {
+        chatHistory = [];
+        document.getElementById('chat-box').innerHTML = '<div class="message coach bg-slate-800/70 text-slate-200 p-3 rounded-2xl rounded-bl-none max-w-[85%] self-start leading-relaxed shadow-sm">Histórico resetado! Pronto para recalibrar seu próximo bloco de treinos.</div>';
+    }
+
+    window.onload = function() {
+        console.log("🏁 [DEBUG] Window carregada. Resgatando dados locais...");
+        if(document.getElementById('athlete-id') && localStorage.getItem('athleteId')) document.getElementById('athlete-id').value = localStorage.getItem('athleteId');
+        if(document.getElementById('intervals-key') && localStorage.getItem('intervalsKey')) document.getElementById('intervals-key').value = localStorage.getItem('intervalsKey');
+        if(document.getElementById('gemini-key') && localStorage.getItem('geminiKey')) document.getElementById('gemini-key').value = localStorage.getItem('geminiKey');
+        if(document.getElementById('athlete-bio') && localStorage.getItem('athleteBio')) document.getElementById('athlete-bio').value = localStorage.getItem('athleteBio');
+        if(localStorage.getItem('athleteId') && localStorage.getItem('intervalsKey')) fetchIntervalsData();
+    };
+
+    console.log("✅ [DEBUG] app.js unificado carregado com sucesso!");
+</script>
+</body>
+</html>
