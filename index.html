@@ -139,7 +139,7 @@
     </div>
 
     <!-- Card de Validação de Planilha -->
-    <div id="validation-card" class="bg-cardBg border-2 border-warning/60 rounded-2xl p-4 shadow-2xl space-y-3 hidden animate-pulse-slow">
+    <div id="validation-card" class="bg-cardBg border-2 border-warning/60 rounded-2xl p-4 shadow-2xl space-y-3 hidden">
         <div class="flex items-center gap-2 border-b border-borderClr pb-2">
             <span class="text-lg">📋</span>
             <h2 class="text-xs uppercase font-black tracking-widest text-warning">Planilha Gerada - Validação Obrigatória</h2>
@@ -148,7 +148,7 @@
         <!-- Onde os blocos de treinos estruturados serão desenhados -->
         <div id="pending-workouts-list" class="space-y-2.5 max-h-60 overflow-y-auto pr-1"></div>
         
-        <button onclick="approvePendingWorkouts()" class="w-full bg-success text-darkBg font-black text-sm uppercase tracking-widest py-3 rounded-xl hover:opacity-90 transition-all shadow-lg shadow-success/15">
+        <button id="btn-approve" onclick="approvePendingWorkouts()" class="w-full bg-success text-darkBg font-black text-sm uppercase tracking-widest py-3 rounded-xl hover:opacity-90 transition-all shadow-lg shadow-success/15">
             Aprovar e Enviar para o Garmin
         </button>
     </div>
@@ -168,7 +168,7 @@
 
         <div class="flex gap-2">
             <input type="text" id="user-input" placeholder="Peça a planilha da semana ou tire dúvidas..." onkeypress="if(event.key === 'Enter') sendMessage()" class="flex-1 bg-darkBg border border-borderClr rounded-full px-4 py-3 text-sm text-white focus:border-accent outline-none transition-all">
-            <button onclick="sendMessage()" class="bg-accent text-darkBg w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg hover:opacity-90 active:scale-95 transition-all">➔</button>
+            <button id="btn-send-chat" onclick="sendMessage()" class="bg-accent text-darkBg w-12 h-12 rounded-full flex items-center justify-center font-bold text-lg hover:opacity-90 active:scale-95 transition-all">➔</button>
         </div>
     </div>
 </div>
@@ -228,9 +228,9 @@
         const tsbEl = document.getElementById('metric-tsb'); 
         if (!tsbEl) return;
         tsbEl.innerText = tsb;
-        if (tsb < -20) tsbEl.style.color = 'var(--danger-color)';
-        else if (tsb >= -20 && tsb <= 5) tsbEl.style.color = 'var(--success-color)';
-        else tsbEl.style.color = 'var(--accent-color)';
+        if (tsb < -20) tsbEl.style.color = '#ef4444';
+        else if (tsb >= -20 && tsb <= 5) tsbEl.style.color = '#10b981';
+        else tsbEl.style.color = '#00c7ff';
     }
 
     function calculateFallbackThresholds(ctl) {
@@ -299,7 +299,7 @@
                         borderWidth: 2,
                         pointRadius: 2,
                         fill: true,
-                        yAxisID: 'y1' // Eixo da direita
+                        yAxisID: 'y1'
                     }
                 ]
             },
@@ -385,8 +385,8 @@
 
     async function sendMessage() {
         const inputEl = document.getElementById('user-input');
-        const btnEl = document.querySelector('.chat-input-container button');
-        if (!inputEl) return;
+        const btnEl = document.getElementById('btn-send-chat');
+        if (!inputEl || !btnEl) return;
         
         const userText = inputEl.value.trim();
         const geminiKey = localStorage.getItem('geminiKey');
@@ -395,6 +395,7 @@
         if (!userText || !geminiKey) return;
 
         inputEl.disabled = true;
+        btnEl.disabled = true;
         appendMessage('user', userText); inputEl.value = '';
 
         chatHistory.push({ role: "user", parts: [{ text: userText }] });
@@ -513,7 +514,7 @@
 
                 } catch(e) { 
                     console.error("❌ Falha no processamento do JSON:", e);
-                    showStatus('Erro ao estruturar os treinos. Tente novamente.', 'var(--danger-color)');
+                    showStatus('Erro ao estruturar os treinos. Tente novamente.', '#ef4444');
                 }
             }
 
@@ -524,9 +525,9 @@
             const loadingBox = document.getElementById('chat-box').lastChild;
             if (loadingBox && loadingBox.innerText.includes('⏳')) loadingBox.remove();
             showStatus('Instabilidade na rede. Reenvie o comando.', '#ef4444');
-            appendMessage('coach', `🚨 Erro na comunicação com os servidores. Por favor, reenvie a mensagem.`);
+            appendMessage('coach', `🚨 **Conexão falhou:** Todos os modelos de IA falharam na tentativa. Motivo do erro:\n\n*${error.message}*\n\nPor favor, aguarde alguns segundos e tente novamente.`);
         } finally {
-            inputEl.disabled = false; if(btnEl) btnEl.disabled = false; inputEl.focus();
+            inputEl.disabled = false; btnEl.disabled = false; inputEl.focus();
         }
     }
 
@@ -559,11 +560,17 @@
     async function uploadWorkouts() {
         const athleteId = localStorage.getItem('athleteId');
         const intervalsKey = localStorage.getItem('intervalsKey');
+        const btnEl = document.getElementById('btn-approve');
         
         if (!athleteId || !intervalsKey || pendingWorkoutsList.length === 0) return;
 
-        const btnEl = document.querySelector('#validation-card button');
-        if (btnEl) btnEl.disabled = true;
+        // 🔥 BLOQUEIO TOTAL: Impede múltiplos cliques e desativa o botão visualmente
+        if (btnEl) {
+            btnEl.disabled = true;
+            btnEl.innerText = "⏳ EXECUTANDO AUTO-LIMPEZA...";
+            btnEl.classList.remove('bg-success');
+            btnEl.classList.add('bg-slate-700', 'text-slate-400', 'cursor-not-allowed');
+        }
 
         // 1. Purga os treinos existentes no período para evitar duplicações
         const datas = pendingWorkoutsList.map(w => w.date).sort();
@@ -576,7 +583,16 @@
         };
 
         let successes = 0;
-        for (const w of pendingWorkoutsList) {
+        let total = pendingWorkoutsList.length;
+
+        for (let i = 0; i < total; i++) {
+            const w = pendingWorkoutsList[i];
+            
+            // Atualiza o texto do botão para mostrar o progresso real de cada envio
+            if (btnEl) {
+                btnEl.innerText = `⏳ ENVIANDO TREINO ${i + 1} DE ${total}...`;
+            }
+
             let tipoCorrigido = w.type;
             if (tipoCorrigido === 'Strength' || tipoCorrigido === 'Strength/Força') {
                 tipoCorrigido = 'WeightTraining';
@@ -600,6 +616,14 @@
             }
         }
 
+        // Restaura e redefine as propriedades do botão de aprovação
+        if (btnEl) {
+            btnEl.disabled = false;
+            btnEl.innerText = "Aprovar e Enviar para o Garmin";
+            btnEl.classList.remove('bg-slate-700', 'text-slate-400', 'cursor-not-allowed');
+            btnEl.classList.add('bg-success');
+        }
+
         if (successes > 0) {
             showStatus(`${successes} treinos carregados!`, '#10b981');
             appendMessage('coach', `🎯 Sensacional! Limpei os treinos antigos e salvei com sucesso ${successes} novo(s) treino(s) diretamente na agenda do seu Garmin.`);
@@ -608,7 +632,6 @@
             fetchIntervalsData();
         } else {
             showStatus('Erro no carregamento.', '#ef4444');
-            if (btnEl) btnEl.disabled = false;
         }
     }
 
