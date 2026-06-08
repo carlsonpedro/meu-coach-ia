@@ -121,8 +121,194 @@ async function fetchIntervalsData() {
     }
 }
 
+// === MICRO-PARTE 7: BUSCAR DADOS DE BEM-ESTAR E CARGA ===
+async function fetchWellnessData(athleteId, authHeader) {
+    const res = await fetch(`https://intervals.icu/api/v1/athlete/${athleteId}/wellness`, { method: 'GET', headers: authHeader });
+    if (!res.ok) throw new Error('Erro ao buscar carga (Wellness).');
+    const wellnessData = await res.json();
+    
+    if (wellnessData && wellnessData.length > 0) {
+        let ultimoDia = wellnessData.slice().reverse().find(dia => (dia.ctl || dia.ctlLoad) > 0);
+        if (ultimoDia) {
+            currentMetrics.ctl = Math.round(ultimoDia.ctl || ultimoDia.ctlLoad);
+            currentMetrics.atl = Math.round(ultimoDia.atl || ultimoDia.atlLoad || 0);
+            currentMetrics.tsb = currentMetrics.ctl - currentMetrics.atl;
+        }
+        renderChart(wellnessData);
+    }
+}
 
+// === MICRO-PARTE 8: BUSCAR PERFIL E ATUALIZAR TELA ===
+async function fetchAthleteProfile(athleteId, authHeader) {
+    try {
+        const res = await fetch(`https://intervals.icu/api/v1/athlete/${athleteId}`, { method: 'GET', headers: authHeader });
+        if (res.ok) {
+            const data = await res.json();
+            if (data.icu_ftp) currentMetrics.ftp = data.icu_ftp + "W";
+        }
+    } catch (e) {}
 
+    calculateFallbackThresholds(currentMetrics.ctl === '--' ? 20 : currentMetrics.ctl);
 
+    document.getElementById('metric-ctl').innerText = currentMetrics.ctl;
+    document.getElementById('metric-atl').innerText = currentMetrics.atl;
+    updateTSBDisplay(currentMetrics.tsb);
+    document.getElementById('metric-ftp').innerText = currentMetrics.ftp;
+    document.getElementById('metric-rpace').innerText = currentMetrics.runPace;
+    document.getElementById('metric-swimcss').innerText = currentMetrics.swimCss;
+}
 
+// === MICRO-PARTE 9: HISTÓRICO DE TREINOS REALIZADOS ===
+async function fetchRecentEvents(athleteId, authHeader) {
+    let hojeStr = new Date().toISOString().split('T')[0];
+    let umaSemanaAtras = new Date(); umaSemanaAtras.setDate(umaSemanaAtras.getDate() - 8);
+    let inicioStr = umaSemanaAtras.toISOString().split('T')[0];
 
+    const res = await fetch(`https://intervals.icu/api/v1/athlete/${athleteId}/events?oldest=${inicioStr}&newest=${hojeStr}`, { method: 'GET', headers: authHeader });
+    if(res.ok) {
+        const events = await res.json();
+        let realizados = events.filter(e => e.type && e.moving_time > 0).slice(-3);
+        recentActivitiesSummary = realizados.map(e => 
+            `- ${e.type}: ${e.name}, Minutos: ${Math.round(e.moving_time/60)}, Watts Med: ${e.icu_average_watts || 'N/A'}, FC Med: ${e.average_heart_rate || 'N/A'}`
+        ).join('\n');
+    }
+}
+
+// === MICRO-PARTE 10: ENVIAR MENSAGEM (PARTE A - CONFIGURAÇÃO DO COACH) ===
+async function sendMessage() {
+    const inputEl = document.getElementById('user-input');
+    const btnEl = document.querySelector('.chat-input-container button');
+    const userText = inputEl.value.trim();
+    const geminiKey = localStorage.getItem('geminiKey');
+    const athleteBio = localStorage.getItem('athleteBio') || "";
+
+    if (!userText || !geminiKey) return;
+
+    inputEl.disabled = true; btnEl.disabled = true;
+    appendMessage('user', userText); inputEl.value = '';
+
+    chatHistory.push({ role: "user", parts: [{ text: userText }] });
+    let apiContents = JSON.parse(JSON.stringify(chatHistory.slice(-6)));
+    const dataHoje = new Date().toISOString().split('T')[0];
+
+    const systemInstruction = `És um treinador focado em resultados rápidos para atletas AMADORES com pouquíssimo tempo de treino (estilo Humango focado em densidade).
+    Objetivo do Atleta: Sprint Triathlon (750m natação, 20km ciclismo, 5km corrida). O atleta usa Garmin e MyWhoosh.
+    
+    REGRAS INEGOCIÁVEIS DE FORÇA NA SEMANA:
+    - Segunda-feira (2ª feira): Treino de Força com Kettlebells obrigatório. Dividido rigidamente em 2 blocos de 20 minutos. Bloco 1: Upper Body Complex. Bloco 2: Lower Body Complex.
+    - Quarta-feira (4ª feira): Treino de Força com Halteres obrigatório. Dividido rigidamente em 2 blocos de 20 minutos. Bloco 1: Upper Body. Bloco 2: Lower Body.
+    
+    REGRAS RÍGIDAS DE DURAÇÃO E TEMPO:
+    - Durante os dias de semana (Segunda a Sexta): Os treinos de ciclismo (Ride) não podem passar de 50 minutos e os treinos de corrida (Run) não podem passar de 45 minutos.
+    - Nos finais de semana (Sábado ou Domingo): Permitir sessões mais longas de endurance ou transições (ex: Brick), respeitando o limite máximo de até 1h30 (90 minutos).
+
+    ESTRATÉGIA DE CICLISMO:
+    - Sempre preferir sessões intervaladas de "Over-Unders" (flutuações estruturadas ligeiramente acima e abaixo do limiar/FTP) em vez de limiar constante monótono. Foco em ganho de potência eficiente no MyWhoosh.
+
+    Métricas atuais: CTL: ${currentMetrics.ctl}, TSB: ${currentMetrics.tsb}. Limiares: FTP: ${currentMetrics.ftp} | Pace: ${currentMetrics.runPace} | CSS: ${currentMetrics.swimCss}.
+    Restrições Extras: ${athleteBio}
+    Últimos treinos: \n${recentActivitiesSummary || "Sem histórico recente."}
+
+    A data de HOJE é: ${dataHoje}. Calcule as datas da semana estritamente a partir disso. Responde em português de forma direta, analítica e focada em qualidade sobre volume.
+
+    REGRA DO JSON: Se sugerires treinos, adicione as três barras no final da resposta exatamente assim:
+    |||[{"date":"AAAA-MM-DD","type":"Run"|"Ride"|"Swim"|"Strength","name":"Nome Curto","desc":"- Bloco 1 (20m): ...\\n- Bloco 2 (20m): ..."}]`;
+
+// === MICRO-PARTE 11: ENVIAR MENSAGEM (PARTE B - REQUISIÇÃO E FECHAMENTO) ===
+    const requestBody = { contents: apiContents, systemInstruction: { parts: [{ text: systemInstruction }] } };
+    try {
+        const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
+            method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(requestBody)
+        });
+        if (!res.ok) throw new Error('Falha na API do Gemini');
+        const data = await res.json();
+        let coachText = data.candidates[0].content.parts[0].text;
+        
+        if (coachText.includes('|||')) {
+            let partes = coachText.split('|||'); coachText = partes[0];
+            try { 
+                pendingWorkoutsList = JSON.parse(partes[1].trim()); 
+                renderPendingWorkouts(); 
+            } catch(e) { console.error(e); }
+        }
+        appendMessage('coach', coachText);
+        chatHistory.push({ role: "model", parts: [{ text: coachText }] });
+    } catch (err) {
+        appendMessage('coach', `Erro na comunicação: ${err.message}`);
+    } finally {
+        inputEl.disabled = false; btnEl.disabled = false;
+    }
+}
+
+// === MICRO-PARTE 12: LIMPAR CHAT E EXIBIR TREINOS NA TELA ===
+function clearChat() {
+    chatHistory = [];
+    document.getElementById('chat-box').innerHTML = '<div class="message coach">Histórico limpo! Como posso ajudar com a sua planilha focada no Sprint Triathlon hoje?</div>';
+}
+
+function renderPendingWorkouts() {
+    const card = document.getElementById('validation-card');
+    const list = document.getElementById('preview-list');
+    list.innerHTML = '';
+    
+    if (!pendingWorkoutsList || pendingWorkoutsList.length === 0) {
+        card.style.display = 'none';
+        return;
+    }
+    
+    pendingWorkoutsList.forEach(w => {
+        const item = document.createElement('div');
+        item.className = 'preview-workout-item';
+        item.innerHTML = `<strong>${w.date} - [${w.type}] ${w.name}</strong><pre>${w.desc}</pre>`;
+        list.appendChild(item);
+    });
+    card.style.display = 'block';
+}
+
+// === MICRO-PARTE 13: ENVIAR TREINOS PARA O INTERVALS.ICU ===
+async function uploadWorkouts() {
+    const athleteId = localStorage.getItem('athleteId');
+    const intervalsKey = localStorage.getItem('intervalsKey');
+    if (!athleteId || !intervalsKey || pendingWorkoutsList.length === 0) return;
+
+    const btnEl = document.querySelector('#validation-card button');
+    if (btnEl) btnEl.disabled = true;
+    showStatus('Enviando treinos para o Intervals...', 'var(--accent-color)');
+    
+    const authHeader = { 
+        'Authorization': `Basic ${btoa(`API_KEY:${intervalsKey}`)}`,
+        'Content-Type': 'application/json'
+    };
+
+    let sucessos = 0;
+    for (const w of pendingWorkoutsList) {
+        const payload = {
+            start_date_local: `${w.date}T06:00:00`,
+            type: w.type,
+            name: w.name,
+            description: w.desc
+        };
+
+        try {
+            const res = await fetch(`https://intervals.icu/api/v1/athlete/${athleteId}/events`, {
+                method: 'POST',
+                headers: authHeader,
+                body: JSON.stringify(payload)
+            });
+            if (res.ok) sucessos++;
+        } catch (e) {
+            console.error('Erro ao subir treino:', e);
+        }
+    }
+
+    if (sucessos > 0) {
+        showStatus(`${sucessos} treino(s) enviados!`, 'var(--success-color)');
+        appendMessage('coach', `🎯 Feito! Enviei ${sucessos} treino(s) direto para o seu calendário no Intervals.icu. Estão prontos para sincronizar com o Garmin/MyWhoosh!`);
+        pendingWorkoutsList = [];
+        renderPendingWorkouts();
+        fetchIntervalsData();
+    } else {
+        showStatus('Erro ao enviar treinos.', 'var(--danger-color)');
+        if (btnEl) btnEl.disabled = false;
+    }
+}
