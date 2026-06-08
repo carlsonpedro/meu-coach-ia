@@ -1,4 +1,4 @@
-// === MICRO-PARTE 1: VARIÁVEIS E INICIALIZAÇÃO ===
+// === VARIÁVEIS GLOBAIS E INICIALIZAÇÃO ===
 let currentMetrics = { ctl: '--', atl: '--', tsb: '--', ftp: '--', runPace: '--', swimCss: '--' };
 let chatHistory = [];
 let recentActivitiesSummary = "";
@@ -13,7 +13,7 @@ window.onload = function() {
     if(localStorage.getItem('athleteId') && localStorage.getItem('intervalsKey')) fetchIntervalsData();
 };
 
-// === MICRO-PARTE 2: CONFIGURAÇÕES E STATUS ===
+// === CONFIGURAÇÕES E STATUS ===
 function saveSettings() {
     localStorage.setItem('athleteId', document.getElementById('athlete-id').value.trim());
     localStorage.setItem('intervalsKey', document.getElementById('intervals-key').value.trim());
@@ -24,10 +24,13 @@ function saveSettings() {
 
 function showStatus(text, color) {
     const el = document.getElementById('status-message');
-    el.innerText = text; el.style.color = color || 'var(--text-muted)';
+    if (el) {
+        el.innerText = text; 
+        el.style.color = color || 'var(--text-muted)';
+    }
 }
 
-// === MICRO-PARTE 3: FORMATAÇÃO DO CHAT E TSB ===
+// === FORMATAÇÃO DO CHAT E INDICADORES ===
 function formatCoachMarkdown(text) {
     let safeText = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
     return safeText.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\n/g, '<br>');
@@ -35,20 +38,24 @@ function formatCoachMarkdown(text) {
 
 function appendMessage(sender, text) {
     const chatBox = document.getElementById('chat-box');
+    if (!chatBox) return;
     const msgDiv = document.createElement('div');
     msgDiv.className = `message ${sender}`;
     msgDiv.innerHTML = sender === 'coach' ? formatCoachMarkdown(text) : text;
-    chatBox.appendChild(msgDiv); chatBox.scrollTop = chatBox.scrollHeight;
+    chatBox.appendChild(msgDiv); 
+    chatBox.scrollTop = chatBox.scrollHeight;
 }
 
 function updateTSBDisplay(tsb) {
-    const tsbEl = document.getElementById('metric-tsb'); tsbEl.innerText = tsb;
+    const tsbEl = document.getElementById('metric-tsb'); 
+    if (!tsbEl) return;
+    tsbEl.innerText = tsb;
     if (tsb < -20) tsbEl.style.color = 'var(--danger-color)';
     else if (tsb >= -20 && tsb <= 5) tsbEl.style.color = 'var(--success-color)';
     else tsbEl.style.color = 'var(--accent-color)';
 }
 
-// === MICRO-PARTE 4: CÁLCULO DE LIMIARES RESERVA ===
+// === CÁLCULO DE LIMIARES RESERVA ===
 function calculateFallbackThresholds(ctl) {
     let baseFtp = 150 + (ctl * 1.5);
     let basePaceSegundos = 360 - (ctl * 1.2); 
@@ -68,9 +75,12 @@ function calculateFallbackThresholds(ctl) {
         currentMetrics.swimCss = `${minS}:${segS}/100m`;
     }
 }
-// === MICRO-PARTE 5: RENDERIZAÇÃO DO GRÁFICO ===
+
+// === RENDERIZAÇÃO DO GRÁFICO ===
 function renderChart(wellnessData) {
-    const ctx = document.getElementById('evolutionChart').getContext('2d');
+    const el = document.getElementById('evolutionChart');
+    if (!el) return;
+    const ctx = el.getContext('2d');
     const ultimosDias = wellnessData.slice(-15);
     
     const labels = ultimosDias.map(d => d.id.substring(5));
@@ -102,7 +112,7 @@ function renderChart(wellnessData) {
     });
 }
 
-// === MICRO-PARTE 6: ORQUESTRADOR DE SINCRONIZAÇÃO ===
+// === SINCRONIZAÇÃO COM INTERVALS.ICU ===
 async function fetchIntervalsData() {
     const athleteId = localStorage.getItem('athleteId');
     const intervalsKey = localStorage.getItem('intervalsKey');
@@ -121,7 +131,6 @@ async function fetchIntervalsData() {
     }
 }
 
-// === MICRO-PARTE 7: BUSCAR DADOS DE BEM-ESTAR E CARGA ===
 async function fetchWellnessData(athleteId, authHeader) {
     const res = await fetch(`https://intervals.icu/api/v1/athlete/${athleteId}/wellness`, { method: 'GET', headers: authHeader });
     if (!res.ok) throw new Error('Erro ao buscar carga (Wellness).');
@@ -138,7 +147,6 @@ async function fetchWellnessData(athleteId, authHeader) {
     }
 }
 
-// === MICRO-PARTE 8: BUSCAR PERFIL E ATUALIZAR TELA ===
 async function fetchAthleteProfile(athleteId, authHeader) {
     try {
         const res = await fetch(`https://intervals.icu/api/v1/athlete/${athleteId}`, { method: 'GET', headers: authHeader });
@@ -150,15 +158,14 @@ async function fetchAthleteProfile(athleteId, authHeader) {
 
     calculateFallbackThresholds(currentMetrics.ctl === '--' ? 20 : currentMetrics.ctl);
 
-    document.getElementById('metric-ctl').innerText = currentMetrics.ctl;
-    document.getElementById('metric-atl').innerText = currentMetrics.atl;
+    if(document.getElementById('metric-ctl')) document.getElementById('metric-ctl').innerText = currentMetrics.ctl;
+    if(document.getElementById('metric-atl')) document.getElementById('metric-atl').innerText = currentMetrics.atl;
     updateTSBDisplay(currentMetrics.tsb);
-    document.getElementById('metric-ftp').innerText = currentMetrics.ftp;
-    document.getElementById('metric-rpace').innerText = currentMetrics.runPace;
-    document.getElementById('metric-swimcss').innerText = currentMetrics.swimCss;
+    if(document.getElementById('metric-ftp')) document.getElementById('metric-ftp').innerText = currentMetrics.ftp;
+    if(document.getElementById('metric-rpace')) document.getElementById('metric-rpace').innerText = currentMetrics.runPace;
+    if(document.getElementById('metric-swimcss')) document.getElementById('metric-swimcss').innerText = currentMetrics.swimCss;
 }
 
-// === MICRO-PARTE 9: HISTÓRICO DE TREINOS REALIZADOS ===
 async function fetchRecentEvents(athleteId, authHeader) {
     let hojeStr = new Date().toISOString().split('T')[0];
     let umaSemanaAtras = new Date(); umaSemanaAtras.setDate(umaSemanaAtras.getDate() - 8);
@@ -174,10 +181,12 @@ async function fetchRecentEvents(athleteId, authHeader) {
     }
 }
 
-// === MICRO-PARTE 10: ENVIAR MENSAGEM (PARTE A - CONFIGURAÇÃO DO COACH) ===
+// === INTEGRAÇÃO COM GEMINI ===
 async function sendMessage() {
     const inputEl = document.getElementById('user-input');
     const btnEl = document.querySelector('.chat-input-container button');
+    if (!inputEl || !btnEl) return;
+    
     const userText = inputEl.value.trim();
     const geminiKey = localStorage.getItem('geminiKey');
     const athleteBio = localStorage.getItem('athleteBio') || "";
@@ -214,7 +223,6 @@ async function sendMessage() {
     REGRA DO JSON: Se sugerires treinos, adicione as três barras no final da resposta exatamente assim:
     |||[{"date":"AAAA-MM-DD","type":"Run"|"Ride"|"Swim"|"Strength","name":"Nome Curto","desc":"- Bloco 1 (20m): ...\\n- Bloco 2 (20m): ..."}]`;
 
-// === MICRO-PARTE 11: ENVIAR MENSAGEM (PARTE B - REQUISIÇÃO E FECHAMENTO) ===
     const requestBody = { contents: apiContents, systemInstruction: { parts: [{ text: systemInstruction }] } };
     try {
         const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
@@ -240,15 +248,16 @@ async function sendMessage() {
     }
 }
 
-// === MICRO-PARTE 12: LIMPAR CHAT E EXIBIR TREINOS NA TELA ===
 function clearChat() {
     chatHistory = [];
-    document.getElementById('chat-box').innerHTML = '<div class="message coach">Histórico limpo! Como posso ajudar com a sua planilha focada no Sprint Triathlon hoje?</div>';
+    const box = document.getElementById('chat-box');
+    if (box) box.innerHTML = '<div class="message coach">Histórico limpo! Como posso ajudar com a sua planilha focada no Sprint Triathlon hoje?</div>';
 }
 
 function renderPendingWorkouts() {
     const card = document.getElementById('validation-card');
     const list = document.getElementById('preview-list');
+    if (!card || !list) return;
     list.innerHTML = '';
     
     if (!pendingWorkoutsList || pendingWorkoutsList.length === 0) {
@@ -265,7 +274,7 @@ function renderPendingWorkouts() {
     card.style.display = 'block';
 }
 
-// === MICRO-PARTE 13: ENVIAR TREINOS PARA O INTERVALS.ICU ===
+// === ENVIO DE TREINOS PARA O CALENDÁRIO ===
 async function uploadWorkouts() {
     const athleteId = localStorage.getItem('athleteId');
     const intervalsKey = localStorage.getItem('intervalsKey');
