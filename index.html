@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>TRI COACH IA · Gemini</title>
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600;700;900&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        mono: ['Space Mono', 'monospace'],
+                        sans: ['DM Sans', 'sans-serif'],
+                    },
+                    colors: {
+                        bg: '#080c12',
+                        surface: '#0e1520',
+                        card: '#111927',
+                        border: '#1c2b3a',
+                        accent: '#00e5ff',
+                        accentDim: '#00aacc',
+                        green: '#00e676',
+                        red: '#ff4444',
+                        orange: '#ff9100',
+                        purple: '#c77dff',
+                        muted: '#4a6070',
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        * { -webkit-tap-highlight-color: transparent; }
+        body { background-color: #080c12; font-family: 'DM Sans', sans-serif; }
+        
+        ::-webkit-scrollbar { width: 3px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #1c2b3a; border-radius: 99px; }
+
+        .glow { box-shadow: 0 0 20px rgba(0, 229, 255, 0.15); }
+        .glow-green { box-shadow: 0 0 20px rgba(0, 230, 118, 0.12); }
+
+        .tab-btn { transition: all 0.2s; border-bottom: 2px solid transparent; }
+        .tab-btn.active { border-bottom-color: #00e5ff; color: #00e5ff; }
+
+        .section { display: none; }
+        .section.active { display: block; }
+
+        /* Limiter bars */
+        .limiter-bar { height: 6px; border-radius: 3px; background: #1c2b3a; overflow: hidden; }
+        .limiter-fill { height: 100%; border-radius: 3px; transition: width 1s ease; }
+
+        /* Sport badge */
+        .badge-bike { background: rgba(0,229,255,0.15); color: #00e5ff; }
+        .badge-run { background: rgba(0,230,118,0.15); color: #00e676; }
+        .badge-strength { background: rgba(199,125,255,0.15); color: #c77dff; }
+        .badge-swim { background: rgba(255,145,0,0.15); color: #ff9100; }
+        .badge-brick { background: rgba(255,68,68,0.15); color: #ff4444; }
+
+        /* Message bubbles */
+        .msg-coach { background: #111927; border: 1px solid #1c2b3a; border-radius: 16px 16px 16px 4px; }
+        .msg-user { background: linear-gradient(135deg, #00aacc, #00e5ff); border-radius: 16px 16px 4px 16px; color: #080c12; }
+        
+        /* Pulse dot */
+        @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.3; } }
+        .pulse-dot { animation: pulse 1.5s infinite; }
+        
+        /* Slide in */
+        @keyframes slideIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .slide-in { animation: slideIn 0.3s ease forwards; }
+
+        /* Typing indicator */
+        @keyframes bounce { 0%,60%,100% { transform: translateY(0); } 30% { transform: translateY(-4px); } }
+        .dot1 { animation: bounce 1.2s infinite 0s; }
+        .dot2 { animation: bounce 1.2s infinite 0.2s; }
+        .dot3 { animation: bounce 1.2s infinite 0.4s; }
+    </style>
+</head>
+<body class="text-slate-100 min-h-screen antialiased">
+
+<div class="max-w-md mx-auto flex flex-col min-h-screen">
+
+    <!-- Header -->
+    <header class="sticky top-0 z-30 bg-bg/90 backdrop-blur-md border-b border-border px-4 py-3 flex items-center justify-between">
+        <div>
+            <h1 class="font-mono text-sm font-bold tracking-widest text-accent uppercase">TRI COACH</h1>
+            <p class="text-[9px] font-mono uppercase text-muted tracking-[0.15em]">Sprint Triathlon · Gemini Pro</p>
+        </div>
+        <div class="flex items-center gap-2">
+            <div id="sync-dot" class="w-2 h-2 rounded-full bg-muted"></div>
+            <span id="sync-label" class="text-[10px] font-mono uppercase text-muted">offline</span>
+            <button onclick="toggleSettings()" class="ml-1 w-8 h-8 rounded-full bg-surface border border-border flex items-center justify-center text-muted hover:text-white hover:border-accent transition-all text-sm">⚙</button>
+        </div>
+    </header>
+
+    <!-- Settings Panel (Slide Down) -->
+    <div id="settings-panel" class="hidden bg-surface border-b border-border p-4 space-y-3 slide-in">
+        <p class="text-[10px] font-mono uppercase text-muted tracking-wider">Configurações</p>
+        <div class="grid grid-cols-2 gap-2">
+            <div>
+                <label class="text-[9px] uppercase font-bold text-muted tracking-wide block mb-1">Athlete ID</label>
+                <input type="text" id="athlete-id" placeholder="i12345" class="w-full bg-card border border-border rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-accent outline-none transition-all">
+            </div>
+            <div>
+                <label class="text-[9px] uppercase font-bold text-muted tracking-wide block mb-1">Intervals Key</label>
+                <input type="password" id="intervals-key" placeholder="API Key" class="w-full bg-card border border-border rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-accent outline-none transition-all">
+            </div>
+        </div>
+        <div>
+            <label class="text-[9px] uppercase font-bold text-muted tracking-wide block mb-1">Gemini API Key</label>
+            <input type="password" id="claude-key" placeholder="AIza..." class="w-full bg-card border border-border rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-accent outline-none transition-all">
+        </div>
+        <div>
+            <label class="text-[9px] uppercase font-bold text-muted tracking-wide block mb-1">Perfil / Restrições</label>
+            <textarea id="athlete-bio" placeholder="Ex: tendinite no joelho direito, sem piscina disponível seg/qua..." class="w-full bg-card border border-border rounded-xl px-3 py-2 text-xs text-white focus:border-accent outline-none transition-all h-14 resize-none"></textarea>
+        </div>
+        <button onclick="saveSettings()" class="w-full bg-green text-bg font-black text-xs uppercase tracking-widest py-2.5 rounded-xl hover:opacity-90 transition-all">
+            Salvar e Sincronizar
+        </button>
+    </div>
+
+    <!-- Tab Navigation -->
+    <nav class="flex bg-surface border-b border-border px-4 gap-0">
+        <button onclick="switchTab('dashboard')" id="tab-dashboard" class="tab-btn active flex-1 py-3 text-[10px] font-mono uppercase tracking-wider text-center">Dashboard</button>
+        <button onclick="switchTab('coach')" id="tab-coach" class="tab-btn flex-1 py-3 text-[10px] font-mono uppercase tracking-wider text-muted text-center">Treinador</button>
+        <button onclick="switchTab('analysis')" id="tab-analysis" class="tab-btn flex-1 py-3 text-[10px] font-mono uppercase tracking-wider text-muted text-center">Análise</button>
+    </nav>
+
+    <!-- SECTION: DASHBOARD -->
+    <div id="section-dashboard" class="section active p-4 space-y-4 pb-8">
+
+        <!-- Load & Balance -->
+        <div class="bg-card border border-border rounded-2xl p-4 space-y-3">
+            <div class="flex items-center justify-between">
+                <span class="text-[10px] font-mono uppercase text-muted tracking-wider">Carga & Forma</span>
+                <button onclick="fetchIntervalsData()" class="text-[9px] font-mono uppercase text-accent hover:opacity-70 transition-all">↻ Sync</button>
+            </div>
+            <div class="grid grid-cols-3 gap-2">
+                <div class="bg-bg rounded-xl p-3 text-center border border-border/60">
+                    <div id="metric-ctl" class="text-2xl font-mono font-bold text-white">--</div>
+                    <div class="text-[8px] font-bold uppercase text-green tracking-widest mt-0.5">CTL</div>
+                    <div class="text-[8px] text-muted">Fitness</div>
+                </div>
+                <div class="bg-bg rounded-xl p-3 text-center border border-border/60">
+                    <div id="metric-atl" class="text-2xl font-mono font-bold text-white">--</div>
+                    <div class="text-[8px] font-bold uppercase text-red tracking-widest mt-0.5">ATL</div>
+                    <div class="text-[8px] text-muted">Fadiga</div>
+                </div>
+                <div class="bg-bg rounded-xl p-3 text-center border border-border/60">
+                    <div id="metric-tsb" class="text-2xl font-mono font-bold text-white">--</div>
+                    <div class="text-[8px] font-bold uppercase text-accent tracking-widest mt-0.5">TSB</div>
+                    <div class="text-[8px] text-muted">Forma</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Limiares -->
+        <div class="bg-card border border-border rounded-2xl p-4">
+            <span class="text-[10px] font-mono uppercase text-muted tracking-wider block mb-3">Limiares de Performance</span>
+            <div class="space-y-2.5">
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="w-5 h-5 rounded-lg badge-bike flex items-center justify-center text-[10px]">🚴</span>
+                        <span class="text-xs text-muted">FTP</span>
+                    </div>
+                    <span id="metric-ftp" class="font-mono text-sm font-bold text-accent">--</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="w-5 h-5 rounded-lg badge-run flex items-center justify-center text-[10px]">🏃</span>
+                        <span class="text-xs text-muted">Limiar Pace</span>
+                    </div>
+                    <span id="metric-rpace" class="font-mono text-sm font-bold text-green">--</span>
+                </div>
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2">
+                        <span class="w-5 h-5 rounded-lg badge-swim flex items-center justify-center text-[10px]">🏊</span>
+                        <span class="text-xs text-muted">CSS</span>
+                    </div>
+                    <span id="metric-swimcss" class="font-mono text-sm font-bold text-orange">--</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chart -->
+        <div class="bg-card border border-border rounded-2xl p-4">
+            <span class="text-[10px] font-mono uppercase text-muted tracking-wider block mb-3">Evolução (15 dias)</span>
+            <div class="relative h-36">
+                <canvas id="evolutionChart"></canvas>
+            </div>
+        </div>
+
+        <div id="status-message" class="text-center text-[11px] font-mono text-muted"></div>
+    </div>
+
+    <!-- SECTION: COACH CHAT -->
+    <div id="section-coach" class="section flex flex-col" style="height: calc(100vh - 108px);">
+
+        <!-- Validation Card (inside coach tab) -->
+        <div id="validation-card" class="hidden bg-surface border-b-2 border-orange/60 p-3 space-y-2">
+            <div class="flex items-center gap-2">
+                <span class="w-1.5 h-1.5 rounded-full bg-orange pulse-dot"></span>
+                <span class="text-[10px] font-mono uppercase text-orange tracking-wider">Planilha pendente de aprovação</span>
+            </div>
+            <div id="pending-workouts-list" class="space-y-2 max-h-52 overflow-y-auto"></div>
+            <button id="btn-approve" onclick="approvePendingWorkouts()" class="w-full bg-green text-bg font-black text-xs uppercase tracking-widest py-2.5 rounded-xl hover:opacity-90 transition-all">
+                ✓ Aprovar e Enviar para o Garmin
+            </button>
+        </div>
+
+        <!-- Messages -->
+        <div id="chat-box" class="flex-1 overflow-y-auto p-4 space-y-3">
+            <div class="msg-coach p-3 max-w-[88%] text-sm leading-relaxed text-slate-300 slide-in">
+                Olá! Sincronize seus dados (⚙) e me peça a planilha da semana. Também posso analisar seus últimos treinos e identificar seus limitantes de performance.
+            </div>
+        </div>
+
+        <!-- Input -->
+        <div class="border-t border-border bg-surface p-3 flex gap-2">
+            <input type="text" id="user-input" placeholder="Ex: gera a planilha da semana..." onkeypress="if(event.key==='Enter') sendMessage()" class="flex-1 bg-card border border-border rounded-full px-4 py-2.5 text-sm text-white focus:border-accent outline-none transition-all placeholder-muted">
+            <button id="btn-send" onclick="sendMessage()" class="w-10 h-10 rounded-full bg-accent text-bg flex items-center justify-center font-bold text-base hover:opacity-90 active:scale-95 transition-all">→</button>
+        </div>
+    </div>
+
+    <!-- SECTION: ANALYSIS -->
+    <div id="section-analysis" class="section p-4 space-y-4 pb-8">
+        <div class="bg-card border border-border rounded-2xl p-4 space-y-3">
+            <div class="flex items-center justify-between">
+                <span class="text-[10px] font-mono uppercase text-muted tracking-wider">Analisar Treino Recente</span>
+            </div>
+            <textarea id="workout-data-input" placeholder="Cole aqui os dados do treino (pace médio, FC média, FC máx, distância, sensação de esforço, cadência, potência...) ou descreva como se sentiu..." class="w-full bg-bg border border-border rounded-xl p-3 text-xs text-white focus:border-accent outline-none transition-all h-24 resize-none placeholder-muted"></textarea>
+            <div class="grid grid-cols-2 gap-2">
+                <button onclick="analyzeWorkout('run')" class="bg-bg border border-border text-green font-bold text-xs py-2.5 rounded-xl hover:border-green transition-all">🏃 Corrida</button>
+                <button onclick="analyzeWorkout('bike')" class="bg-bg border border-border text-accent font-bold text-xs py-2.5 rounded-xl hover:border-accent transition-all">🚴 Ciclismo</button>
+            </div>
+        </div>
+
+        <!-- Limiters Result -->
+        <div id="limiters-card" class="hidden bg-card border border-border rounded-2xl p-4 space-y-4 slide-in">
+            <span class="text-[10px] font-mono uppercase text-muted tracking-wider block">Diagnóstico de Limitantes</span>
+            
+            <div class="space-y-3">
+                <!-- Cardio -->
+                <div class="space-y-1.5">
+                    <div class="flex justify-between items-center">
+                        <div class="flex items-center gap-2">
+                            <span class="text-base">❤️</span>
+                            <div>
+                                <span class="text-xs font-bold text-white">Sistema Cardíaco</span>
+                                <p class="text-[9px] text-muted">VO2máx, eficiência cardíaca</p>
+                            </div>
+                        </div>
+                        <span id="limiter-cardio-pct" class="font-mono text-sm font-bold text-red">--%</span>
+                    </div>
+                    <div class="limiter-bar"><div id="limiter-cardio-bar" class="limiter-fill bg-red" style="width:0%"></div></div>
+                </div>
+
+                <!-- VO2 -->
+                <div class="space-y-1.5">
+                    <div class="flex justify-between items-center">
+                        <div class="flex items-center gap-2">
+                            <span class="text-base">🫁</span>
+                            <div>
+                                <span class="text-xs font-bold text-white">VO₂ / Capacidade Aeróbia</span>
+                                <p class="text-[9px] text-muted">Consumo máximo de oxigênio</p>
+                            </div>
+                        </div>
+                        <span id="limiter-vo2-pct" class="font-mono text-sm font-bold text-accent">--%</span>
+                    </div>
+                    <div class="limiter-bar"><div id="limiter-vo2-bar" class="limiter-fill bg-accent" style="width:0%"></div></div>
+                </div>
+
+                <!-- Lactato -->
+                <div class="space-y-1.5">
+                    <div class="flex justify-between items-center">
+                        <div class="flex items-center gap-2">
+                            <span class="text-base">🔥</span>
+                            <div>
+                                <span class="text-xs font-bold text-white">Limiar de Lactato</span>
+                                <p class="text-[9px] text-muted">Tolerância ao esforço intenso</p>
+                            </div>
+                        </div>
+                        <span id="limiter-lactato-pct" class="font-mono text-sm font-bold text-orange">--%</span>
+                    </div>
+                    <div class="limiter-bar"><div id="limiter-lactato-bar" class="limiter-fill bg-orange" style="width:0%"></div></div>
+                </div>
+
+                <!-- Força Muscular -->
+                <div class="space-y-1.5">
+                    <div class="flex justify-between items-center">
+                        <div class="flex items-center gap-2">
+                            <span class="text-base">💪</span>
+                            <div>
+                                <span class="text-xs font-bold text-white">Força Muscular</span>
+                                <p class="text-[9px] text-muted">Resistência neuromuscular</p>
+                            </div>
+                        </div>
+                        <span id="limiter-strength-pct" class="font-mono text-sm font-bold text-purple">--%</span>
+                    </div>
+                    <div class="limiter-bar"><div id="limiter-strength-bar" class="limiter-fill bg-purple" style="width:0%"></div></div>
+                </div>
+            </div>
+
+            <!-- Main limiter highlight -->
+            <div id="limiter-verdict" class="bg-bg border border-border rounded-xl p-3 space-y-1">
+                <span class="text-[9px] font-mono uppercase text-muted tracking-wider">Diagnóstico principal</span>
+                <p id="limiter-text" class="text-sm text-white leading-relaxed"></p>
+            </div>
+
+            <!-- Recommended sessions -->
+            <div id="limiter-recs" class="space-y-2">
+                <span class="text-[9px] font-mono uppercase text-muted tracking-wider block">Treinos recomendados</span>
+                <div id="limiter-recs-list" class="space-y-1.5"></div>
+            </div>
+        </div>
+
+        <div id="analysis-status" class="text-center text-[11px] font-mono text-muted"></div>
+    </div>
+
+</div> <!-- end max-w container -->
+
+<script>
+    // ─── STATE ────────────────────────────────────────────────────────────────
+    let currentMetrics = { ctl: '--', atl: '--', tsb: '--', ftp: '--', runPace: '--', swimCss: '--' };
+    let chatHistory = [];
+    let recentActivitiesSummary = "";
+    let pendingWorkoutsList = [];
+    let evolutionChartInstance = null;
+    let settingsOpen = false;
+
+    // ─── TABS ─────────────────────────────────────────────────────────────────
+    function switchTab(tab) {
+        document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(b => { b.classList.remove('active'); b.classList.add('text-muted'); });
+        document.getElementById('section-' + tab).classList.add('active');
+        const btn = document.getElementById('tab-' + tab);
+        btn.classList.add('active'); btn.classList.remove('text-muted');
+    }
+
+    function toggleSettings() {
+        settingsOpen = !settingsOpen;
+        document.getElementById('settings-panel').classList.toggle('hidden', !settingsOpen);
+    }
+
+    // ─── FORMATTING ───────────────────────────────────────────────────────────
+    function formatCoach(text) {
+        if (!text) return '';
+        let t = text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        t = t.replace(/^### (.*?)$/gm,'<p class="text-accent font-bold text-[10px] uppercase tracking-wider mt-2 mb-0.5 font-mono">$1</p>');
+        t = t.replace(/^## (.*?)$/gm,'<p class="text-white font-bold text-sm mt-3 mb-1 border-b border-border pb-0.5">$1</p>');
+        t = t.replace(/^\* (.*?)$/gm,'<div class="flex gap-1.5 items-start text-xs text-slate-300 my-0.5"><span class="text-accent mt-0.5 shrink-0">▸</span><span>$1</span></div>');
+        t = t.replace(/^- (.*?)$/gm,'<div class="flex gap-1.5 items-start text-xs text-slate-300 my-0.5"><span class="text-accent mt-0.5 shrink-0">▸</span><span>$1</span></div>');
+        t = t.replace(/\*\*(.*?)\*\*/g,'<strong class="text-white font-semibold">$1</strong>');
+        t = t.replace(/\n/g,'<br>');
+        return t;
+    }
+
+    function appendMessage(sender, html) {
+        const box = document.getElementById('chat-box');
+        if (!box) return;
+        const d = document.createElement('div');
+        d.className = `slide-in max-w-[88%] leading-relaxed text-sm p-3 ${sender === 'user' ? 'msg-user ml-auto font-medium' : 'msg-coach text-slate-300'}`;
+        d.innerHTML = sender === 'coach' ? formatCoach(html) : html;
+        box.appendChild(d);
+        box.scrollTop = box.scrollHeight;
+        return d;
+    }
+
+    function showTyping() {
+        const box = document.getElementById('chat-box');
+        const d = document.createElement('div');
+        d.id = 'typing-indicator';
+        d.className = 'msg-coach p-3 max-w-[60px] flex gap-1 items-center slide-in';
+        d.innerHTML = '<span class="dot1 w-1.5 h-1.5 bg-muted rounded-full inline-block"></span><span class="dot2 w-1.5 h-1.5 bg-muted rounded-full inline-block"></span><span class="dot3 w-1.5 h-1.5 bg-muted rounded-full inline-block"></span>';
+        box.appendChild(d);
+        box.scrollTop = box.scrollHeight;
+    }
+
+    function removeTyping() {
+        const el = document.getElementById('typing-indicator');
+        if (el) el.remove();
+    }
+
+    function showStatus(text, color) {
+        const el = document.getElementById('status-message');
+        if (el) { el.innerText = text; el.style.color = color || '#4a6070'; }
+    }
+
+    function showAnalysisStatus(text, color) {
+        const el = document.getElementById('analysis-status');
+        if (el) { el.innerText = text; el.style.color = color || '#4a6070'; }
+    }
+
+    function updateTSBDisplay(tsb) {
+        const el = document.getElementById('metric-tsb');
+        if (!el) return;
+        el.innerText = tsb;
+        if (tsb < -20) el.style.color = '#ff4444';
+        else if (tsb >= -20 && tsb <= 5) el.style.color = '#00e676';
+        else el.style.color = '#00e5ff';
+    }
+
+    // ─── CHART ────────────────────────────────────────────────────────────────
+    function renderChart(wellnessData) {
+        const el = document.getElementById('evolutionChart');
+        if (!el) return;
+        const ctx = el.getContext('2d');
+        const last15 = wellnessData.slice(-15);
+        const labels = last15.map(d => d.id.substring(5));
+        const ctlData = last15.map(d => Math.round(d.ctl || d.ctlLoad || 0));
+        const atlData = last15.map(d => Math.round(d.atl || d.atlLoad || 0));
+        const tsbData = ctlData.map((c, i) => c - atlData[i]);
+        if (evolutionChartInstance) evolutionChartInstance.destroy();
+        evolutionChartInstance = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels,
+                datasets: [
+                    { label: 'CTL', data: ctlData, borderColor: '#00e676', borderWidth: 2, pointRadius: 0, fill: false, yAxisID: 'y' },
+                    { label: 'ATL', data: atlData, borderColor: '#ff4444', borderWidth: 1.5, pointRadius: 0, fill: false, yAxisID: 'y' },
+                    { label: 'TSB', data: tsbData, borderColor: '#00e5ff', backgroundColor: 'rgba(0,229,255,0.06)', borderWidth: 2, pointRadius: 2, fill: true, yAxisID: 'y1' }
+                ]
+            },
+            options: {
+                responsive: true, maintainAspectRatio: false,
+                scales: {
+                    x: { grid: { display: false }, ticks: { color: '#4a6070', font: { size: 8, family: 'Space Mono' } } },
+                    y: { position: 'left', grid: { color: '#1c2b3a' }, ticks: { color: '#00e676', font: { size: 8 } } },
+                    y1: { position: 'right', grid: { display: false }, ticks: { color: '#00e5ff', font: { size: 8 } } }
+                },
+                plugins: { legend: { labels: { color: '#8899aa', boxWidth: 8, font: { size: 8, family: 'Space Mono' } } } }
+            }
+        });
+    }
+
+    // ─── INTERVALS FETCH ──────────────────────────────────────────────────────
+    function calculateFallbackThresholds(ctl) {
+        const n = typeof ctl === 'number' ? ctl : 20;
+        if (!currentMetrics.ftp || currentMetrics.ftp === '--') currentMetrics.ftp = Math.round(150 + n * 1.5) + 'W';
+        if (!currentMetrics.runPace || currentMetrics.runPace === '--') {
+            const s = 360 - n * 1.2;
+            currentMetrics.runPace = `${Math.floor(s/60)}:${Math.round(s%60).toString().padStart(2,'0')}/km`;
+        }
+        if (!currentMetrics.swimCss || currentMetrics.swimCss === '--') {
+            const s = 130 - n * 0.3;
+            currentMetrics.swimCss = `${Math.floor(s/60)}:${Math.round(s%60).toString().padStart(2,'0')}/100m`;
+        }
+    }
+
+    async function fetchIntervalsData() {
+        const athleteId = localStorage.getItem('athleteId');
+        const intervalsKey = localStorage.getItem('intervalsKey');
+        if (!athleteId || !intervalsKey) { showStatus('Configure o ID e API Key nas configurações.', '#ff9100'); return; }
+        showStatus('Sincronizando...', '#00e5ff');
+        const auth = { 'Authorization': `Basic ${btoa(`API_KEY:${intervalsKey}`)}` };
+        try {
+            const res = await fetch(`https://intervals.icu/api/v1/athlete/${athleteId}/wellness`, { headers: auth });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const data = await res.json();
+            if (data && data.length > 0) {
+                const last = data.slice().reverse().find(d => (d.ctl || d.ctlLoad) > 0);
+                if (last) {
+                    currentMetrics.ctl = Math.round(last.ctl || last.ctlLoad);
+                    currentMetrics.atl = Math.round(last.atl || last.atlLoad || 0);
+                    currentMetrics.tsb = currentMetrics.ctl - currentMetrics.atl;
+                }
+                renderChart(data);
+            }
+            try {
+                const resA = await fetch(`https://intervals.icu/api/v1/athlete/${athleteId}`, { headers: auth });
+                if (resA.ok) { const d = await resA.json(); if (d.icu_ftp) currentMetrics.ftp = d.icu_ftp + 'W'; }
+            } catch(e) {}
+            calculateFallbackThresholds(currentMetrics.ctl === '--' ? 20 : currentMetrics.ctl);
+            document.getElementById('metric-ctl').innerText = currentMetrics.ctl;
+            document.getElementById('metric-atl').innerText = currentMetrics.atl;
+            updateTSBDisplay(currentMetrics.tsb);
+            document.getElementById('metric-ftp').innerText = currentMetrics.ftp;
+            document.getElementById('metric-rpace').innerText = currentMetrics.runPace;
+            document.getElementById('metric-swimcss').innerText = currentMetrics.swimCss;
+            const dot = document.getElementById('sync-dot');
+            const label = document.getElementById('sync-label');
+            if (dot) { dot.classList.remove('bg-muted'); dot.classList.add('bg-green', 'pulse-dot'); }
+            if (label) { label.innerText = 'online'; label.classList.add('text-green'); }
+            showStatus('Sincronizado!', '#00e676');
+        } catch(e) { showStatus(`Erro: ${e.message}`, '#ff4444'); }
+    }
+
+    // ─── CLAUDE API CALL (shared) ─────────────────────────────────────────────
+    async function callClaude(systemPrompt, userMessage, history = []) {
+        const apiKey = localStorage.getItem('claudeKey');
+        if (!apiKey) throw new Error('Configure sua Gemini API Key nas configurações.');
+
+        // Converte histórico para formato Gemini (role: user/model)
+        const contents = history.map(m => ({
+            role: m.role === 'assistant' ? 'model' : 'user',
+            parts: [{ text: m.content }]
+        }));
+        contents.push({ role: 'user', parts: [{ text: userMessage }] });
+
+        const body = {
+            system_instruction: { parts: [{ text: systemPrompt }] },
+            contents,
+            generationConfig: { maxOutputTokens: 4000, temperature: 0.7 }
+        };
+
+        let attempt = 0;
+        let res;
+        while (attempt < 3) {
+            res = await fetch(
+                `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+                { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+            );
+            if (res.status === 429 || res.status === 503) {
+                attempt++;
+                await new Promise(r => setTimeout(r, 3000));
+                continue;
+            }
+            break;
+        }
+        if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.error?.message || `HTTP ${res.status}`);
+        }
+        const data = await res.json();
+        return data.candidates[0].content.parts[0].text;
+    }
+
+    // ─── COACH SEND MESSAGE ───────────────────────────────────────────────────
+    async function sendMessage() {
+        const inputEl = document.getElementById('user-input');
+        const btnEl = document.getElementById('btn-send');
+        if (!inputEl || !btnEl) return;
+        const userText = inputEl.value.trim();
+        if (!userText) return;
+        inputEl.disabled = true; btnEl.disabled = true;
+        appendMessage('user', userText); inputEl.value = '';
+        chatHistory.push({ role: 'user', content: userText });
+
+        const dataHoje = new Date().toISOString().split('T')[0];
+        const athleteBio = localStorage.getItem('athleteBio') || '';
+
+        const systemPrompt = `Você é um treinador especialista em Sprint Triathlon para atletas amadores com pouco tempo.
+Objetivo: Sprint (750m natação, 20km bike, 5km corrida). Atleta usa Garmin e MyWhoosh.
+
+REGRAS DE NATAÇÃO: NÃO sugira natação por padrão. Só inclua se o atleta pedir explicitamente.
+
+INTENSIDADES (INEGOCIÁVEL):
+- Jamais use FC/BPM/HR em nenhum contexto.
+- Ciclismo: potência em % do FTP. Ex: "- 30m 70% text=Z2 aeróbico"
+- Corrida: pace por km. Ex: "- 40m 5:30/km text=Z2 rodagem"
+- Força (WeightTraining): lista simples com quebras de linha \\n
+
+SINTAXE INTERVALS.ICU para Ride/Run:
+- Cada bloco: "- [duração] [alvo] text=[descrição]"
+- Intervalos: linha de repetição + blocos recuados. Ex:
+  4x
+  - 3m 105% text=Over FTP
+  - 2m 80% text=Recuperação
+
+SEMANA PADRÃO:
+- Segunda: Força Kettlebells (2 blocos de 20min: Upper + Lower Body)
+- Quarta: Força Halteres (2 blocos de 20min: Upper + Lower Body)
+- Semana (seg-sex): Bike ≤ 50min, Corrida ≤ 45min
+- Fim de semana: até 90min (pode incluir Brick)
+
+MÉTRICAS ATUAIS: CTL=${currentMetrics.ctl} | TSB=${currentMetrics.tsb} | FTP=${currentMetrics.ftp} | Pace limiar=${currentMetrics.runPace} | CSS=${currentMetrics.swimCss}
+PERFIL DO ATLETA: ${athleteBio || 'Não informado'}
+HISTÓRICO RECENTE: ${recentActivitiesSummary || 'Sem dados'}
+DATA HOJE: ${dataHoje}
+
+Responda em português. Seja direto, analítico e prático.
+
+REGRA DO JSON: Se gerar treinos, inclua ao final EXATAMENTE um bloco \`\`\`json com o formato:
+\`\`\`json
+{
+  "training_plan": [
+    {
+      "date": "YYYY-MM-DD",
+      "workouts": [
+        { "type": "Ride|Run|WeightTraining|Swim", "title": "Nome do treino", "desc": "script linha a linha" }
+      ]
+    }
+  ]
+}
+\`\`\``;
+
+        showTyping();
+        try {
+            const historyForApi = chatHistory.slice(0, -1).slice(-6).map(m => ({
+                role: m.role === 'assistant' ? 'assistant' : m.role, content: m.content
+            }));
+            const reply = await callClaude(systemPrompt, userText, historyForApi);
+            removeTyping();
+            chatHistory.push({ role: 'assistant', content: reply });
+
+            let coachText = reply;
+            const mdMatch = reply.match(/```(?:json)?([\s\S]*?)```/i);
+            if (mdMatch) {
+                let rawJson = mdMatch[1].trim();
+                coachText = reply.replace(/```(?:json)?[\s\S]*?```/gi, '').trim();
+                rawJson = rawJson.replace(/"desc"\s*:\s*"([\s\S]*?)"/g, (match, p1) => {
+                    return `"desc": "${p1.replace(/\n/g,'\\n').replace(/\r/g,'')}"`;
+                });
+                rawJson = rawJson.replace(/,\s*([\]}])/g, '$1');
+                try {
+                    const parsed = JSON.parse(rawJson);
+                    let flat = [];
+                    if (parsed.training_plan && Array.isArray(parsed.training_plan)) {
+                        parsed.training_plan.forEach(day => {
+                            (day.workouts || []).forEach(w => flat.push({ date: day.date, type: w.type, name: w.title || w.name || 'Treino', desc: w.desc }));
+                        });
+                    } else if (Array.isArray(parsed)) {
+                        flat = parsed.map(w => ({ date: w.date, type: w.type, name: w.name || w.title || 'Treino', desc: w.desc }));
+                    }
+                    if (flat.length > 0) { pendingWorkoutsList = flat; renderPendingWorkouts(); switchTab('coach'); }
+                } catch(e) { console.error('JSON parse error:', e); }
+            }
+            appendMessage('coach', coachText || 'Treinos gerados — veja acima para aprovar.');
+        } catch(e) {
+            removeTyping();
+            appendMessage('coach', `⚠️ **Erro de conexão:** ${e.message}`);
+        } finally {
+            inputEl.disabled = false; btnEl.disabled = false; inputEl.focus();
+        }
+    }
+
+    // ─── WORKOUT ANALYSIS ─────────────────────────────────────────────────────
+    async function analyzeWorkout(sport) {
+        const dataInput = document.getElementById('workout-data-input').value.trim();
+        if (!dataInput) { showAnalysisStatus('Cole os dados do treino no campo acima.', '#ff9100'); return; }
+
+        showAnalysisStatus('Analisando...', '#00e5ff');
+        document.getElementById('limiters-card').classList.add('hidden');
+
+        const systemPrompt = `Você é um fisiologista do esporte especializado em triathlon. Analise os dados de treino fornecidos e determine os principais limitantes de performance do atleta.
+
+Os quatro limitantes possíveis são:
+1. CARDIO: Limitação pelo sistema cardiovascular (VO2máx, frequência cardíaca elevada para o esforço)
+2. VO2: Capacidade aeróbia máxima (queda de performance em esforços intensos, rápida acidose)
+3. LACTATO: Limiar de lactato baixo (não consegue sustentar ritmo moderado-alto por tempo prolongado, forte queimação muscular)
+4. FORCA: Força muscular/resistência neuromuscular (pernas pesadas, falta de propulsão, cadência cai)
+
+Métricas do atleta para referência: FTP=${currentMetrics.ftp} | Pace limiar=${currentMetrics.runPace} | CTL=${currentMetrics.ctl} | TSB=${currentMetrics.tsb}
+
+RESPONDA OBRIGATORIAMENTE APENAS em JSON válido, sem texto adicional, sem backticks, exatamente neste formato:
+{
+  "scores": { "cardio": 0-100, "vo2": 0-100, "lactato": 0-100, "forca": 0-100 },
+  "main_limiter": "CARDIO|VO2|LACTATO|FORCA",
+  "diagnosis": "Diagnóstico em 2-3 frases explicando o que os dados indicam e por quê esse é o limitante principal.",
+  "recommendations": [
+    { "type": "Ride|Run|WeightTraining", "title": "Nome do treino", "focus": "1 frase descrevendo o objetivo" },
+    { "type": "...", "title": "...", "focus": "..." },
+    { "type": "...", "title": "...", "focus": "..." }
+  ]
+}`;
+
+        const userMsg = `Modalidade analisada: ${sport === 'run' ? 'Corrida' : 'Ciclismo'}\n\nDados do treino:\n${dataInput}`;
+
+        try {
+            const reply = await callClaude(systemPrompt, userMsg);
+            const clean = reply.replace(/```json|```/g, '').trim();
+            const result = JSON.parse(clean);
+            renderLimiters(result);
+            showAnalysisStatus('', '');
+        } catch(e) {
+            showAnalysisStatus(`Erro: ${e.message}`, '#ff4444');
+        }
+    }
+
+    function renderLimiters(result) {
+        const card = document.getElementById('limiters-card');
+        const scores = result.scores;
+        const keys = ['cardio', 'vo2', 'lactato', 'forca'];
+        keys.forEach(k => {
+            const pct = Math.min(100, Math.max(0, scores[k] || 0));
+            document.getElementById(`limiter-${k}-pct`).innerText = pct + '%';
+            setTimeout(() => { document.getElementById(`limiter-${k}-bar`).style.width = pct + '%'; }, 100);
+        });
+        document.getElementById('limiter-text').innerText = result.diagnosis;
+        const recsList = document.getElementById('limiter-recs-list');
+        recsList.innerHTML = '';
+        (result.recommendations || []).forEach(r => {
+            const types = { Ride: 'badge-bike', Run: 'badge-run', WeightTraining: 'badge-strength', Swim: 'badge-swim' };
+            const icons = { Ride: '🚴', Run: '🏃', WeightTraining: '💪', Swim: '🏊' };
+            const badgeClass = types[r.type] || 'badge-bike';
+            const icon = icons[r.type] || '🏋️';
+            const d = document.createElement('div');
+            d.className = 'bg-bg border border-border rounded-xl p-3 flex items-start gap-2.5';
+            d.innerHTML = `<span class="text-sm shrink-0">${icon}</span><div><p class="text-xs font-bold text-white">${r.title}</p><p class="text-[10px] text-muted mt-0.5">${r.focus}</p></div><span class="ml-auto text-[9px] px-1.5 py-0.5 rounded-md font-mono uppercase ${badgeClass}">${r.type}</span>`;
+            recsList.appendChild(d);
+        });
+        card.classList.remove('hidden');
+        card.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    // ─── WORKOUTS UPLOAD ──────────────────────────────────────────────────────
+    function renderPendingWorkouts() {
+        const card = document.getElementById('validation-card');
+        const list = document.getElementById('pending-workouts-list');
+        if (!card || !list) return;
+        list.innerHTML = '';
+        if (!pendingWorkoutsList || pendingWorkoutsList.length === 0) { card.classList.add('hidden'); return; }
+        pendingWorkoutsList.forEach(w => {
+            const borders = { Ride: 'border-l-accent', Run: 'border-l-green', WeightTraining: 'border-l-purple', Swim: 'border-l-orange' };
+            const border = borders[w.type] || 'border-l-muted';
+            const d = document.createElement('div');
+            d.className = `bg-bg border border-border rounded-xl p-2.5 border-l-2 ${border} text-xs`;
+            d.innerHTML = `<div class="flex justify-between items-center font-bold mb-1.5"><span class="text-white">${w.date} — ${w.name}</span><span class="text-[8px] font-mono uppercase text-muted">${w.type}</span></div><pre class="text-[9px] text-slate-400 bg-surface/50 p-2 rounded-lg font-mono leading-relaxed overflow-x-auto whitespace-pre-wrap">${w.desc}</pre>`;
+            list.appendChild(d);
+        });
+        card.classList.remove('hidden');
+    }
+
+    async function clearWorkoutsForPeriod(start, end) {
+        const athleteId = localStorage.getItem('athleteId');
+        const intervalsKey = localStorage.getItem('intervalsKey');
+        if (!athleteId || !intervalsKey) return;
+        const auth = { 'Authorization': `Basic ${btoa(`API_KEY:${intervalsKey}`)}` };
+        try {
+            const res = await fetch(`https://intervals.icu/api/v1/athlete/${athleteId}/events?oldest=${start}&newest=${end}`, { headers: auth });
+            if (!res.ok) return;
+            const events = await res.json();
+            for (const e of events.filter(e => e.category === 'WORKOUT' || e.type === 'WeightTraining')) {
+                await fetch(`https://intervals.icu/api/v1/athlete/${athleteId}/events/${e.id}`, { method: 'DELETE', headers: auth });
+            }
+        } catch(e) { console.error('Purge error:', e); }
+    }
+
+    async function uploadWorkouts() {
+        const athleteId = localStorage.getItem('athleteId');
+        const intervalsKey = localStorage.getItem('intervalsKey');
+        const btn = document.getElementById('btn-approve');
+        if (!athleteId || !intervalsKey || !pendingWorkoutsList.length) return;
+        if (btn) { btn.disabled = true; btn.innerText = '⏳ Limpando agenda...'; }
+        const dates = pendingWorkoutsList.map(w => w.date).sort();
+        await clearWorkoutsForPeriod(dates[0], dates[dates.length - 1]);
+        const auth = { 'Authorization': `Basic ${btoa(`API_KEY:${intervalsKey}`)}`, 'Content-Type': 'application/json' };
+        let ok = 0;
+        for (let i = 0; i < pendingWorkoutsList.length; i++) {
+            const w = pendingWorkoutsList[i];
+            if (btn) btn.innerText = `⏳ Enviando ${i + 1}/${pendingWorkoutsList.length}...`;
+            const type = w.type === 'Strength' ? 'WeightTraining' : w.type;
+            try {
+                const res = await fetch(`https://intervals.icu/api/v1/athlete/${athleteId}/events`, {
+                    method: 'POST', headers: auth,
+                    body: JSON.stringify({ category: 'WORKOUT', start_date_local: `${w.date}T06:00:00`, type, name: w.name, description: w.desc })
+                });
+                if (res.ok) ok++;
+            } catch(e) {}
+        }
+        if (btn) { btn.disabled = false; btn.innerText = '✓ Aprovar e Enviar para o Garmin'; }
+        if (ok > 0) {
+            switchTab('coach');
+            appendMessage('coach', `🎯 ${ok} treino(s) enviados para o Garmin com sucesso! Agenda da semana atualizada.`);
+            pendingWorkoutsList = [];
+            renderPendingWorkouts();
+            fetchIntervalsData();
+        }
+    }
+
+    function approvePendingWorkouts() { uploadWorkouts(); }
+
+    // ─── SETTINGS ─────────────────────────────────────────────────────────────
+    function saveSettings() {
+        const fields = [
+            ['athlete-id', 'athleteId'],
+            ['intervals-key', 'intervalsKey'],
+            ['claude-key', 'claudeKey'],
+            ['athlete-bio', 'athleteBio']
+        ];
+        fields.forEach(([id, key]) => {
+            const el = document.getElementById(id);
+            if (el) localStorage.setItem(key, el.value.trim());
+        });
+        toggleSettings();
+        showStatus('Salvo!', '#00e676');
+        if (localStorage.getItem('athleteId') && localStorage.getItem('intervalsKey')) fetchIntervalsData();
+    }
+
+    function clearChat() {
+        chatHistory = [];
+        document.getElementById('chat-box').innerHTML = '<div class="msg-coach p-3 max-w-[88%] text-sm leading-relaxed text-slate-300 slide-in">Histórico limpo. Pronto para o próximo bloco de treinos!</div>';
+    }
+
+    // ─── INIT ─────────────────────────────────────────────────────────────────
+    window.onload = function() {
+        const map = [['athlete-id','athleteId'],['intervals-key','intervalsKey'],['claude-key','claudeKey'],['athlete-bio','athleteBio']];
+        map.forEach(([id, key]) => { const v = localStorage.getItem(key); const el = document.getElementById(id); if (v && el) el.value = v; });
+        if (localStorage.getItem('athleteId') && localStorage.getItem('intervalsKey')) fetchIntervalsData();
+    };
+</script>
+</body>
+</html>
