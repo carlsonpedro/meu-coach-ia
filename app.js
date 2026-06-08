@@ -379,9 +379,10 @@ async function sendMessage() {
 
         appendMessage('coach', coachText || "Aqui estão os seus treinos estruturados para conferência:");
         chatHistory.push({ role: "model", parts: [{ text: data.candidates[0].content.parts[0].text }] });
-    } catch (err) {
-        appendMessage('coach', `🚨 Erro na comunicação: ${err.message}`);
-    } finally {
+    } catch (error) {
+    console.error("Erro na requisição da IA:", error);
+    showStatus('Os servidores da Google estão instáveis (Erro 503). Por favor, tente enviar novamente.', 'var(--danger-color)');
+} finally {
         inputEl.disabled = false; btnEl.disabled = false;
     }
 }
