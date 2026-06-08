@@ -234,12 +234,20 @@ async function sendMessage() {
     REGRA DO JSON: Se sugerires treinos, adicione as três barras no final da resposta exatamente assim:
     |||[{"date":"AAAA-MM-DD","type":"Run"|"Ride"|"Swim"|"Strength","name":"Nome Curto","desc":"- Bloco 1 (20m): ...\\n- Bloco 2 (20m): ..."}]`;
 
+    // === COLOQUE ESTE BLOCO SUBSTIUINDO O TRY/CATCH DA FUNÇÃO sendMessage ===
     const requestBody = { contents: apiContents, systemInstruction: { parts: [{ text: systemInstruction }] } };
     try {
         const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(requestBody)
         });
-        if (!res.ok) throw new Error('Falha na API do Gemini');
+        
+        // Diagnóstico avançado: se der erro, lê a mensagem real do Google
+        if (!res.ok) {
+            const errorDetails = await res.json().catch(() => ({}));
+            const apiMessage = errorDetails.error?.message || `Status HTTP ${res.status}`;
+            throw new Error(`[Google API] ${apiMessage}`);
+        }
+        
         const data = await res.json();
         let coachText = data.candidates[0].content.parts[0].text;
         
@@ -253,7 +261,8 @@ async function sendMessage() {
         appendMessage('coach', coachText);
         chatHistory.push({ role: "model", parts: [{ text: coachText }] });
     } catch (err) {
-        appendMessage('coach', `Erro na comunicação: ${err.message}`);
+        // Exibe o erro real na tela do chat
+        appendMessage('coach', `🚨 Erro na comunicação: ${err.message}`);
     } finally {
         inputEl.disabled = false; btnEl.disabled = false;
     }
