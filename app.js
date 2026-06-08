@@ -208,7 +208,7 @@ async function sendMessage() {
     appendMessage('user', userText); inputEl.value = '';
 
     chatHistory.push({ role: "user", parts: [{ text: userText }] });
-    let apiContents = JSON.parse(JSON.stringify(chatHistory.slice(-6)));
+    let apiContents = JSON.parse(JSON.stringify(chatHistory.slice(-3)));
     const dataHoje = new Date().toISOString().split('T')[0];
 
     const systemInstruction = `És um treinador focado em resultados rápidos para atletas AMADORES com pouquíssimo tempo de treino (estilo Humango focado em densidade).
