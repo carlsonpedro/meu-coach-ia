@@ -479,4 +479,58 @@ function renderPendingWorkouts() {
     cardEl.style.display = 'block';
 }
 
+// Função auxiliar para deletar os treinos antigos do período solicitado
+async function clearWorkoutsForPeriod(startDate, endDate) {
+    const athleteId = localStorage.getItem('intervalsAthleteId');
+    const apiKey = localStorage.getItem('intervalsApiKey');
+    if (!athleteId || !apiKey) return;
+
+    showStatus('Limpando treinos antigos da semana no Intervals...', 'var(--warning-color)');
+
+    const authHeader = 'Basic ' + btoa('athlete:' + apiKey);
+    const urlGet = `https://intervals.icu/api/v1/athlete/${athleteId}/events?oldest=${startDate}&newest=${endDate}`;
+
+    try {
+        const res = await fetch(urlGet, { headers: { 'Authorization': authHeader } });
+        if (!res.ok) return;
+        
+        const events = await res.json();
+        // Filtra apenas eventos planejados (workouts) ignorando atividades reais já realizadas
+        const workoutsToDelete = events.filter(event => event.category === 'WORKOUT' || event.type === 'WeightTraining');
+
+        for (const workout of workoutsToDelete) {
+            const urlDelete = `https://intervals.icu/api/v1/athlete/${athleteId}/events/${workout.id}`;
+            await fetch(urlDelete, {
+                method: 'DELETE',
+                headers: { 'Authorization': authHeader }
+            });
+        }
+        console.log(`🧹 Limpeza concluída: ${workoutsToDelete.length} treinos antigos removidos.`);
+    } catch (err) {
+        console.error('Erro ao limpar calendário antigo:', err);
+    }
+}
+
+// Adapte o gatilho do seu botão verde ("Aprovar e Enviar") para chamar a limpeza antes do upload
+async function aprovarEEnviarPlanilha() {
+    if (!pendingWorkoutsList || pendingWorkoutsList.length === 0) return;
+
+    // Descobre o menor e o maior dia do plano gerado para isolar o range de limpeza
+    const datas = pendingWorkoutsList.map(w => w.date).sort();
+    const minDate = datas[0];
+    const maxDate = datas[datas.length - 1];
+
+    // Executa a limpeza cirúrgica do período antes de injetar os novos
+    await clearWorkoutsForPeriod(minDate, maxDate);
+
+    // ... [Mantenha aqui o seu laço de loop POST atual que envia os itens da pendingWorkoutsList para o Intervals] ...
+    // Exemplo do seu laço existente:
+    // for (let workout of pendingWorkoutsList) { ... await fetch(POST) ... }
+    
+    showStatus('Sensacional! Calendário atualizado sem duplicações.', 'var(--success-color)');
+    if (document.getElementById('validation-card')) {
+        document.getElementById('validation-card').style.display = 'none';
+    }
+}
+
 console.log("✅ [DEBUG] app.js terminou de carregar com sucesso!");
