@@ -282,6 +282,7 @@ async function sendMessage() {
         // Limpezas cosméticas residuais
         coachText = coachText.replace(/\|\|\|/g, '').trim();
 
+        // === SUBSTITUA O BLOCO 'if (rawJson)' DENTRO DE sendMessage POR ESTE ===
         if (rawJson) {
             // Ajusta quebras de linha literais geradas pela IA dentro do campo "desc"
             rawJson = rawJson.replace(/"desc"\s*:\s*"([\s\S]*?)"/g, (match, p1) => {
@@ -289,16 +290,56 @@ async function sendMessage() {
                 return `"desc": "${textTratado}"`;
             });
             
-            // Remove possíveis vírgulas órfãs no final de objetos/arrays
+            // Remove possíveis vírgulas órfãs no final de listas
             rawJson = rawJson.replace(/,\s*([\]}])/g, '$1');
 
             try { 
-                pendingWorkoutsList = JSON.parse(rawJson); 
-                renderPendingWorkouts(); 
+                const parsed = JSON.parse(rawJson);
+                let listaPlana = [];
+
+                // 🎯 SMART PARSER: Se a IA gerar o formato aninhado do Gemini 2.5 (com training_plan)
+                if (parsed.training_plan && Array.isArray(parsed.training_plan)) {
+                    parsed.training_plan.forEach(day => {
+                        const dataTreino = day.date;
+                        if (day.workouts && Array.isArray(day.workouts)) {
+                            day.workouts.forEach(w => {
+                                listaPlana.push({
+                                    date: dataTreino,
+                                    type: w.type,
+                                    name: w.title || w.name || "Treino Estruturado",
+                                    desc: w.desc
+                                });
+                            });
+                        }
+                    });
+                } else if (Array.isArray(parsed)) {
+                    // Se a IA gerar o formato de lista plana tradicional do Gemini 2.0
+                    listaPlana = parsed.map(w => ({
+                        date: w.date,
+                        type: w.type,
+                        name: w.name || w.title || "Treino Estruturado",
+                        desc: w.desc
+                    }));
+                } else {
+                    throw new Error("Formato de estrutura de treino desconhecido.");
+                }
+
+                // Salva a lista final padronizada para o botão de envio usar
+                pendingWorkoutsList = listaPlana; 
+
+                // 🚨 CORREÇÃO DO REFERENCE ERROR: Executa a renderização de forma segura
+                if (typeof renderPendingWorkouts === 'function') {
+                    renderPendingWorkouts();
+                } else {
+                    // Fallback: Se a função não existir, força a exibição do container do card na tela
+                    const cardEl = document.getElementById('validation-card');
+                    if (cardEl) cardEl.style.display = 'block';
+                }
+
             } catch(e) { 
-                console.error("❌ Falha crítica no JSON extraído:", e);
+                console.error("❌ Falha crítica no processamento dos treinos:", e);
                 console.log("Conteúdo bruto capturado:", rawJson);
-                showStatus('Erro: IA estruturou dados incorretamente. Tente de novo.', 'var(--danger-color)');
+                showStatus('Erro ao processar a estrutura dos treinos. Tente de novo.', 'var(--danger-color)');
             }
         }
 
