@@ -194,6 +194,7 @@ function renderChart(wellnessData) {
 
 // === 8. ENVIO PARA GEMINI ===
 // === SUBSTITUA A FUNÇÃO sendMessage INTEIRA NO SEU APP.JS ===
+// === SUBSTITUA A FUNÇÃO sendMessage INTEIRA NO SEU APP.JS POR ESTA VERSÃO REGEX ===
 async function sendMessage() {
     const inputEl = document.getElementById('user-input');
     const btnEl = document.querySelector('.chat-input-container button');
@@ -223,7 +224,7 @@ async function sendMessage() {
     - Treinos Fortes / Intervalados / Ritmo Alto (Z4 ou superior): Use Potência (Watts) para treinos de ciclismo (foco em flutuações Over-Unders perto/acima do FTP no MyWhoosh) e Pace (min/km) para treinos de corrida.
 
     SINTAXE OBRIGATÓRIA DE TREINO (PADRÃO DE SCRIPT DO INTERVALS.ICU):
-    Para treinos de Ride (Ciclismo) e Run (Corrida), o campo "desc" NÃO P0DE conter texto corrido ou parágrafos. Ele deve ser um script interpretável linha por linha seguindo estas regras exatas:
+    Para treinos de Ride (Ciclismo) e Run (Corrida), o campo "desc" NÃO PODE conter texto corrido ou parágrafos. Ele deve ser um script interpretável linha por linha seguindo estas regras exatas:
     1. Cada bloco de tempo deve começar obrigatoriamente com um hífen e espaço, seguido da duração e do alvo (Ex: "- 10m Z1" ou "- 35m Z2 HR").
     2. Adicione descrições legíveis usando a tag 'text='. Exemplo: "- 5m Z1 text=Aquecimento girando leve"
     3. Para treinos baseados em Frequência Cardíaca (Z2/Leves), use o sufixo "HR". Exemplo: "- 30m Z2 HR text=Rodagem de Base"
@@ -248,8 +249,7 @@ async function sendMessage() {
 
     A data de HOJE é: ${dataHoje}. Calcule as datas da semana estritamente a partir disso. Responde em português de forma direta, analítica e focada em qualidade sobre volume.
 
-    REGRA DO JSON: Se sugerires treinos, adicione as três barras no final da resposta exatamente assim:
-    |||[{"date":"AAAA-MM-DD","type":"Run"|"Ride"|"Swim"|"WeightTraining","name":"Nome Curto","desc":"- 10m Z1 text=Aquecimento\\n3x\\n- 4m 95%\\n- 2m 105%\\n- 5m Z1"}]`;
+    REGRA DO JSON: Se sugerires treinos, adicione a estrutura de dados em formato JSON válida no final da resposta.`;
 
     const requestBody = { contents: apiContents, systemInstruction: { parts: [{ text: systemInstruction }] } };
     try {
@@ -265,36 +265,45 @@ async function sendMessage() {
         
         const data = await res.json();
         let coachText = data.candidates[0].content.parts[0].text;
-        
-        // === COLOQUE ESTE BLOCO LOGO APÓS PEGAR O coachText DA API ===
-        if (coachText.includes('|||')) {
-            let partes = coachText.split('|||'); 
+        let rawJson = "";
+
+        // 🎯 CAPTURA AVANÇADA POR REGEX (Ignora o delimitador ||| e foca na estrutura)
+        const mdMatch = coachText.match(/```(?:json)?([\s\S]*?)```/i);
+        if (mdMatch) {
+            rawJson = mdMatch[1].trim();
+            // Remove o bloco de código inteiro para não poluir o balão do chat
+            coachText = coachText.replace(/```(?:json)?[\s\S]*?```/gi, '').trim();
+        } else if (coachText.includes('|||')) {
+            let partes = coachText.split('|||');
             coachText = partes[0];
-            let rawJson = partes[1].trim();
-            
-            // 1. Remove blocos de Markdown visíveis ou ocultos (```json ... ```)
-            rawJson = rawJson.replace(/^```json/i, '').replace(/^```/, '').replace(/```$/, '').trim();
-            
-            // 2. 🎯 CORREÇÃO CRUCIAL: Captura o campo "desc" e transforma quebras de linha reais em \n string
-            rawJson = rawJson.replace(/"desc"\s*:\s*"([\s\S]*?)"(?=\s*\}|\s*,)/g, (match, p1) => {
+            rawJson = partes[1].trim();
+        }
+
+        // Limpezas cosméticas residuais
+        coachText = coachText.replace(/\|\|\|/g, '').trim();
+
+        if (rawJson) {
+            // Ajusta quebras de linha literais geradas pela IA dentro do campo "desc"
+            rawJson = rawJson.replace(/"desc"\s*:\s*"([\s\S]*?)"/g, (match, p1) => {
                 const textTratado = p1.replace(/\n/g, '\\n').replace(/\r/g, '');
                 return `"desc": "${textTratado}"`;
             });
             
-            // 3. Remove possíveis vírgulas soltas no final de listas que a IA adora esquecer
+            // Remove possíveis vírgulas órfãs no final de objetos/arrays
             rawJson = rawJson.replace(/,\s*([\]}])/g, '$1');
-            
+
             try { 
                 pendingWorkoutsList = JSON.parse(rawJson); 
                 renderPendingWorkouts(); 
             } catch(e) { 
-                console.error("❌ Erro ao parsear JSON mesmo após higienização:", e);
-                console.log("Região do JSON problemático:", rawJson);
-                showStatus('Erro na estrutura dos treinos. Tente reenviar.', 'var(--danger-color)');
+                console.error("❌ Falha crítica no JSON extraído:", e);
+                console.log("Conteúdo bruto capturado:", rawJson);
+                showStatus('Erro: IA estruturou dados incorretamente. Tente de novo.', 'var(--danger-color)');
             }
         }
-        appendMessage('coach', coachText);
-        chatHistory.push({ role: "model", parts: [{ text: coachText }] });
+
+        appendMessage('coach', coachText || "Aqui estão os seus treinos estruturados para conferência:");
+        chatHistory.push({ role: "model", parts: [{ text: data.candidates[0].content.parts[0].text }] });
     } catch (err) {
         appendMessage('coach', `🚨 Erro na comunicação: ${err.message}`);
     } finally {
