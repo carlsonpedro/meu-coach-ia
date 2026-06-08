@@ -415,7 +415,7 @@
         - Treinos de Força (WeightTraining): Use bullet points simples separados por quebra de linha (\\n) para listar os exercícios nos blocos.
 
         SINTAXE OBRIGATÓRIA DE TREINO (PADRÃO DE SCRIPT DO INTERVALS.ICU):
-        Para treinos de Ride e Run, o campo "desc" NÃO PODE conter texto corrido, parênteses de watts (como 100-120w) ou nomes de zonas de FC. Ele deve ser um script interpretável linha por linha seguindo estas regras exatas:
+        Para treinos de Ride e Run, o campo "desc" NÃO POKE conter texto corrido, parênteses de watts (como 100-120w) ou nomes de zonas de FC. Ele deve ser um script interpretável linha por linha seguindo estas regras exatas:
         1. Cada bloco de tempo deve começar obrigatoriamente com um hífen e espaço, seguido da duração e do alvo (Ex: "- 10m 70%" ou "- 20m 5:30/km").
         2. Adicione descrições legíveis usando a tag 'text='. Exemplo: "- 5m 55% text=Aquecimento girando leve"
         3. Para blocos intervalados, coloque o multiplicador de repetição na linha superior e recue os passos. Exemplo de Over-Unders:
@@ -444,11 +444,43 @@
         
         appendMessage('coach', '⏳ Planejando e calculando zonas de esforço...');
         
+        let maxRetries = 3;
+        let attempt = 0;
+        let delayTime = 3000; 
+        let success = false;
+        let res = null;
+
+        // 🎯 MOTOR DE AUTO-RETENTATIVA AUTOMÁTICA EM CASO DE ERROS DO GOOGLE
+        while (attempt < maxRetries && !success) {
+            try {
+                res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(requestBody)
+                });
+
+                if (res.status === 429 || res.status === 503) {
+                    attempt++;
+                    if (attempt < maxRetries) {
+                        const loadingBox = document.getElementById('chat-box').lastChild;
+                        if (loadingBox && loadingBox.innerText.includes('⏳')) {
+                            loadingBox.innerHTML = `⏳ Servidores do Google instáveis ou congestionados. Tentativa ${attempt} de ${maxRetries}... Re-enviando em 3s...`;
+                        }
+                        await new Promise(resolve => setTimeout(resolve, delayTime));
+                        continue;
+                    }
+                }
+                success = true;
+            } catch (err) {
+                attempt++;
+                if (attempt < maxRetries) {
+                    await new Promise(resolve => setTimeout(resolve, delayTime));
+                    continue;
+                }
+                // Se exceder todas as tentativas de rede brutas, lança o erro para o bloco catch principal
+                throw err;
+            }
+        }
+        
         try {
-            const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiKey}`, {
-                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(requestBody)
-            });
-            
             const loadingBox = document.getElementById('chat-box').lastChild;
             if (loadingBox && loadingBox.innerText.includes('⏳')) loadingBox.remove();
 
