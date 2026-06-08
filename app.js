@@ -266,21 +266,31 @@ async function sendMessage() {
         const data = await res.json();
         let coachText = data.candidates[0].content.parts[0].text;
         
-        // Sanatização avançada do JSON gerado
+        // === COLOQUE ESTE BLOCO LOGO APÓS PEGAR O coachText DA API ===
         if (coachText.includes('|||')) {
             let partes = coachText.split('|||'); 
             coachText = partes[0];
             let rawJson = partes[1].trim();
             
-            // 🛠️ Remove blocos de Markdown ocultos (```json ... ```) se existirem
+            // 1. Remove blocos de Markdown visíveis ou ocultos (```json ... ```)
             rawJson = rawJson.replace(/^```json/i, '').replace(/^```/, '').replace(/```$/, '').trim();
+            
+            // 2. 🎯 CORREÇÃO CRUCIAL: Captura o campo "desc" e transforma quebras de linha reais em \n string
+            rawJson = rawJson.replace(/"desc"\s*:\s*"([\s\S]*?)"(?=\s*\}|\s*,)/g, (match, p1) => {
+                const textTratado = p1.replace(/\n/g, '\\n').replace(/\r/g, '');
+                return `"desc": "${textTratado}"`;
+            });
+            
+            // 3. Remove possíveis vírgulas soltas no final de listas que a IA adora esquecer
+            rawJson = rawJson.replace(/,\s*([\]}])/g, '$1');
             
             try { 
                 pendingWorkoutsList = JSON.parse(rawJson); 
                 renderPendingWorkouts(); 
             } catch(e) { 
-                console.error("Erro crítico ao parsear JSON tratado:", e);
-                showStatus('Erro: IA gerou estrutura inválida. Tente reenviar comando.', 'var(--danger-color)');
+                console.error("❌ Erro ao parsear JSON mesmo após higienização:", e);
+                console.log("Região do JSON problemático:", rawJson);
+                showStatus('Erro na estrutura dos treinos. Tente reenviar.', 'var(--danger-color)');
             }
         }
         appendMessage('coach', coachText);
