@@ -177,21 +177,20 @@ function renderChart(wellnessData) {
             datasets: [
     {
         label: 'CTL',
-        data: dadosCTL,
-        borderColor: '#10b981', // Verde
-        yAxisID: 'y' // Usa o eixo padrão da esquerda
+        data: // 🚨 NÃO MEXA AQUI! Deixe a variável ou o map que já estava antes
+        borderColor: '#10b981',
+        // Não precisa colocar yAxisID aqui, ele pega o esquerdo por padrão
     },
     {
         label: 'ATL',
-        data: dadosATL,
-        borderColor: '#ef4444', // Vermelho
-        yAxisID: 'y' // Usa o eixo padrão da esquerda
+        data: // 🚨 NÃO MEXA AQUI! Deixe a variável ou o map que já estava antes
+        borderColor: '#ef4444',
     },
     {
         label: 'TSB',
-        data: dadosTSB,
-        borderColor: '#3b82f6', // Azul
-        yAxisID: 'y1' // 🎯 CRUCIAL: Amarra o TSB ao eixo da direita!
+        data: // 🚨 NÃO MEXA AQUI! Deixe a variável ou o map que já estava antes
+        borderColor: '#3b82f6',
+        yAxisID: 'y1' // 🎯 ADICIONE APENAS ESTA LINHA AQUI NO BLOCO DO TSB!
     }
 ]
         },
