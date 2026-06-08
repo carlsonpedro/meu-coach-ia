@@ -299,10 +299,22 @@ function renderPendingWorkouts() {
 }
 
 // === 9. ENVIO PARA INTERVALS.ICU ===
+// === SUBSTITUA A FUNÇÃO uploadWorkouts NO SEU APP.JS POR ESTA VERSÃO CORRIGIDA ===
 async function uploadWorkouts() {
+    console.log("🚀 [DEBUG] Iniciando processo de upload de treinos corrigido...");
+    
     const athleteId = localStorage.getItem('athleteId');
     const intervalsKey = localStorage.getItem('intervalsKey');
-    if (!athleteId || !intervalsKey || pendingWorkoutsList.length === 0) return;
+    
+    if (!athleteId || !intervalsKey) {
+        showStatus('Erro: Configure seu ID e API Key do Intervals antes de enviar.', 'var(--danger-color)');
+        return;
+    }
+    
+    if (!pendingWorkoutsList || pendingWorkoutsList.length === 0) {
+        showStatus('Erro: Nenhuma lista de treinos pendente para envio.', 'var(--danger-color)');
+        return;
+    }
 
     const btnEl = document.querySelector('#validation-card button');
     if (btnEl) btnEl.disabled = true;
@@ -315,12 +327,22 @@ async function uploadWorkouts() {
 
     let successes = 0;
     for (const w of pendingWorkoutsList) {
+        // Trata o tipo de treino para o padrão aceito pelo Intervals.icu
+        let tipoCorrigido = w.type;
+        if (tipoCorrigido === 'Strength' || tipoCorrigido === 'Strength/Força') {
+            tipoCorrigido = 'WeightTraining';
+        }
+
+        // Payload ajustado com as regras estritas da API do Intervals
         const payload = {
+            category: 'WORKOUT', // ESSENCIAL: Diz ao Intervals que isso é um treino planejado
             start_date_local: `${w.date}T06:00:00`,
-            type: w.type,
+            type: tipoCorrigido, // Usa o mapeamento correto (ex: WeightTraining, Ride, Run)
             name: w.name,
             description: w.desc
         };
+
+        console.log(`📤 Enviando: [${payload.type}] ${payload.name} em ${w.date}`);
 
         try {
             const res = await fetch(`https://intervals.icu/api/v1/athlete/${athleteId}/events`, {
@@ -328,20 +350,28 @@ async function uploadWorkouts() {
                 headers: authHeader,
                 body: JSON.stringify(payload)
             });
-            if (res.ok) successes++;
+            
+            if (res.ok) {
+                successes++;
+            } else {
+                const errText = await res.text();
+                console.error(`❌ Erro do Intervals no treino [${w.name}]:`, errText);
+            }
         } catch (e) {
-            console.error('Erro ao subir treino:', e);
+            console.error('❌ Erro de conexão de rede:', e);
         }
     }
 
+    // Retorno visual e limpeza da interface
     if (successes > 0) {
         showStatus(`${successes} treino(s) enviados!`, 'var(--success-color)');
-        appendMessage('coach', `🎯 Feito! Enviei ${successes} treino(s) direto para o seu calendário no Intervals.icu. Estão prontos para sincronizar com o Garmin/MyWhoosh!`);
+        appendMessage('coach', `🎯 Sensacional! Enviei com sucesso ${successes} treino(s) estruturados direto para o seu calendário no Intervals.icu. Já estão prontos para sincronizar com o seu ecossistema.`);
         pendingWorkoutsList = [];
         renderPendingWorkouts();
         fetchIntervalsData();
     } else {
-        showStatus('Erro ao enviar treinos.', 'var(--danger-color)');
+        showStatus('Erro na validação dos treinos.', 'var(--danger-color)');
+        alert('O servidor recusou os dados. Verifique os logs detalhados do console (F12).');
         if (btnEl) btnEl.disabled = false;
     }
 }
