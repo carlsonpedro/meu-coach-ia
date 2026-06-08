@@ -215,18 +215,6 @@
     <!-- SECTION: COACH CHAT -->
     <div id="section-coach" class="section flex flex-col" style="height: calc(100vh - 108px);">
 
-        <!-- Validation Card (inside coach tab) -->
-        <div id="validation-card" class="hidden bg-surface border-b-2 border-orange/60 p-3 space-y-2">
-            <div class="flex items-center gap-2">
-                <span class="w-1.5 h-1.5 rounded-full bg-orange pulse-dot"></span>
-                <span class="text-[10px] font-mono uppercase text-orange tracking-wider">Planilha pendente de aprovação</span>
-            </div>
-            <div id="pending-workouts-list" class="space-y-2 max-h-52 overflow-y-auto"></div>
-            <button id="btn-approve" onclick="approvePendingWorkouts()" class="w-full bg-green text-bg font-black text-xs uppercase tracking-widest py-2.5 rounded-xl hover:opacity-90 transition-all">
-                ✓ Aprovar e Enviar para o Garmin
-            </button>
-        </div>
-
         <!-- Messages -->
         <div id="chat-box" class="flex-1 overflow-y-auto p-4 space-y-3">
             <div class="msg-coach p-3 max-w-[88%] text-sm leading-relaxed text-slate-300 slide-in">
@@ -235,9 +223,10 @@
         </div>
 
         <!-- Input -->
-        <div class="border-t border-border bg-surface p-3 flex gap-2">
+        <div class="border-t border-border bg-surface p-3 flex gap-2 items-center">
+            <button id="btn-open-drawer" onclick="toggleDrawer(true)" class="hidden shrink-0 w-8 h-8 rounded-full bg-orange/20 border border-orange/60 flex items-center justify-center text-orange text-xs" title="Ver planilha pendente">📋</button>
             <input type="text" id="user-input" placeholder="Ex: gera a planilha da semana..." onkeypress="if(event.key==='Enter') sendMessage()" class="flex-1 bg-card border border-border rounded-full px-4 py-2.5 text-sm text-white focus:border-accent outline-none transition-all placeholder-muted">
-            <button id="btn-send" onclick="sendMessage()" class="w-10 h-10 rounded-full bg-accent text-bg flex items-center justify-center font-bold text-base hover:opacity-90 active:scale-95 transition-all">→</button>
+            <button id="btn-send" onclick="sendMessage()" class="shrink-0 w-10 h-10 rounded-full bg-accent text-bg flex items-center justify-center font-bold text-base hover:opacity-90 active:scale-95 transition-all">→</button>
         </div>
     </div>
 
@@ -338,6 +327,29 @@
 
 </div> <!-- end max-w container -->
 
+<!-- VALIDATION DRAWER — fixed bottom sheet, overlays everything -->
+<div id="validation-card" class="hidden fixed inset-x-0 bottom-0 z-50">
+    <div id="drawer-backdrop" onclick="toggleDrawer()" class="fixed inset-0 bg-black/60 backdrop-blur-sm"></div>
+    <div class="relative max-w-md mx-auto bg-surface border-t-2 border-orange rounded-t-3xl shadow-2xl">
+        <div class="flex justify-center pt-3 pb-1 cursor-pointer" onclick="toggleDrawer()">
+            <div class="w-10 h-1 rounded-full bg-border"></div>
+        </div>
+        <div class="flex items-center justify-between px-4 py-2 border-b border-border">
+            <div class="flex items-center gap-2">
+                <span class="w-2 h-2 rounded-full bg-orange pulse-dot"></span>
+                <span class="text-[10px] font-mono uppercase text-orange tracking-wider font-bold">Planilha pendente de aprovação</span>
+            </div>
+            <button onclick="toggleDrawer()" class="text-muted text-xl leading-none hover:text-white transition-colors px-1">✕</button>
+        </div>
+        <div id="pending-workouts-list" class="space-y-2 max-h-60 overflow-y-auto px-4 py-3"></div>
+        <div class="px-4 pb-8 pt-1">
+            <button id="btn-approve" onclick="approvePendingWorkouts()" class="w-full bg-green text-bg font-black text-xs uppercase tracking-widest py-3 rounded-2xl hover:opacity-90 active:scale-[0.98] transition-all">
+                ✓ Aprovar e Enviar para o Garmin
+            </button>
+        </div>
+    </div>
+</div>
+
 <script>
     // ─── STATE ────────────────────────────────────────────────────────────────
     let currentMetrics = { ctl: '--', atl: '--', tsb: '--', ftp: '--', runPace: '--', swimCss: '--' };
@@ -359,6 +371,22 @@
     function toggleSettings() {
         settingsOpen = !settingsOpen;
         document.getElementById('settings-panel').classList.toggle('hidden', !settingsOpen);
+    }
+
+    function toggleDrawer(forceOpen) {
+        const card = document.getElementById('validation-card');
+        const openBtn = document.getElementById('btn-open-drawer');
+        const isHidden = card.classList.contains('hidden');
+        if (forceOpen === true || (forceOpen === undefined && isHidden)) {
+            card.classList.remove('hidden');
+            document.body.style.overflow = 'hidden';
+            if (openBtn) openBtn.classList.add('hidden');
+        } else {
+            card.classList.add('hidden');
+            document.body.style.overflow = '';
+            // Show re-open button only if there are pending workouts
+            if (openBtn && pendingWorkoutsList && pendingWorkoutsList.length > 0) openBtn.classList.remove('hidden');
+        }
     }
 
     // ─── FORMATTING ───────────────────────────────────────────────────────────
@@ -555,45 +583,62 @@
         const dataHoje = new Date().toISOString().split('T')[0];
         const athleteBio = localStorage.getItem('athleteBio') || '';
 
-        const systemPrompt = `Você é um treinador especialista em Sprint Triathlon para atletas amadores com pouco tempo.
-Objetivo: Sprint (750m natação, 20km bike, 5km corrida). Atleta usa Garmin e MyWhoosh.
+        const systemPrompt = `Você é um treinador focado em resultados rápidos para atletas AMADORES com pouquíssimo tempo de treino.
+Objetivo do Atleta: Sprint Triathlon (750m natação, 20km ciclismo, 5km corrida). O atleta usa Garmin e MyWhoosh.
 
-REGRAS DE NATAÇÃO: NÃO sugira natação por padrão. Só inclua se o atleta pedir explicitamente.
+REGRA CRUCIAL DE NATAÇÃO:
+Não sugira treinos de natação por padrão. Só inclua natação se o atleta pedir EXPLICITAMENTE no chat atual.
 
-INTENSIDADES (INEGOCIÁVEL):
-- Jamais use FC/BPM/HR em nenhum contexto.
-- Ciclismo: potência em % do FTP. Ex: "- 30m 70% text=Z2 aeróbico"
-- Corrida: pace por km. Ex: "- 40m 5:30/km text=Z2 rodagem"
-- Força (WeightTraining): lista simples com quebras de linha \\n
+REGRAS DE INTENSIDADE (INEGOCIÁVEL — jamais use FC, BPM ou HR em qualquer contexto):
+- Ciclismo (Ride): potência em % do FTP. Ex: "- 30m 70% text=Z2 Aeróbico constante" ou "- 4m 105% text=Tiro acima do FTP"
+- Corrida (Run): pace por quilômetro. Ex: "- 40m 5:30/km text=Rodagem ritmada Z2"
+- Força (WeightTraining): lista de exercícios com bullet points separados por \\n
 
-SINTAXE INTERVALS.ICU para Ride/Run:
-- Cada bloco: "- [duração] [alvo] text=[descrição]"
-- Intervalos: linha de repetição + blocos recuados. Ex:
-  4x
-  - 3m 105% text=Over FTP
-  - 2m 80% text=Recuperação
+SINTAXE OBRIGATÓRIA INTERVALS.ICU para Ride e Run (script interpretável linha por linha):
+1. Cada bloco começa com "- [duração] [alvo] text=[descrição legível]"
+   Ex: "- 10m 70% text=Aquecimento" ou "- 20m 5:30/km text=Ritmo Z2"
+2. Intervalos com repetição: coloque o multiplicador sozinho na linha, depois recue os passos:
+   4x
+   - 3m 105% text=Over FTP
+   - 2m 80% text=Recuperação ativa
+3. Over-Unders (obrigatório em pelo menos 1 sessão de bike por semana quando TSB permitir):
+   3x
+   - 4m 95% text=Under FTP sustentado
+   - 2m 108% text=Over FTP pressão
+4. NÃO use parênteses com watts absolutos (ex: "(100-120w)"), zonas de FC, ou texto corrido no campo desc.
 
-SEMANA PADRÃO:
-- Segunda: Força Kettlebells (2 blocos de 20min: Upper + Lower Body)
-- Quarta: Força Halteres (2 blocos de 20min: Upper + Lower Body)
-- Semana (seg-sex): Bike ≤ 50min, Corrida ≤ 45min
-- Fim de semana: até 90min (pode incluir Brick)
+REGRAS INEGOCIÁVEIS DE FORÇA:
+- Segunda-feira: WeightTraining com Kettlebells. 2 blocos de 20min.
+  Bloco 1 (Upper Body Complex): Turkish Get-up, Press, Renegade Row, Halo
+  Bloco 2 (Lower Body Complex): Goblet Squat, Swing, Dead Clean, Step-up
+- Quarta-feira: WeightTraining com Halteres. 2 blocos de 20min.
+  Bloco 1 (Upper Body): Press, Row, Fly, Curl, Tricep Extension
+  Bloco 2 (Lower Body): Split Squat, RDL, Hip Thrust, Step-up lateral
+
+REGRAS DE DURAÇÃO:
+- Segunda a Sexta: Ride ≤ 50min, Run ≤ 45min
+- Sábado ou Domingo: sessões longas ou Brick, máximo 90min
+
+PROGRESSÃO BASEADA EM TSB:
+- TSB < -20 (muito fatigado): reduzir volume 30%, focar em Z1/Z2 apenas
+- TSB -20 a 0 (normal): semana padrão com 1 sessão de qualidade
+- TSB > 5 (fresco): pode adicionar 1 sessão extra de qualidade ou aumentar volume
 
 MÉTRICAS ATUAIS: CTL=${currentMetrics.ctl} | TSB=${currentMetrics.tsb} | FTP=${currentMetrics.ftp} | Pace limiar=${currentMetrics.runPace} | CSS=${currentMetrics.swimCss}
 PERFIL DO ATLETA: ${athleteBio || 'Não informado'}
-HISTÓRICO RECENTE: ${recentActivitiesSummary || 'Sem dados'}
+HISTÓRICO RECENTE: ${recentActivitiesSummary || 'Sem dados recentes'}
 DATA HOJE: ${dataHoje}
 
-Responda em português. Seja direto, analítico e prático.
+Responda em português. Seja direto, analítico e focado em qualidade sobre volume.
 
-REGRA DO JSON: Se gerar treinos, inclua ao final EXATAMENTE um bloco \`\`\`json com o formato:
+REGRA DO JSON: Quando gerar treinos, inclua EXATAMENTE ao final um bloco \`\`\`json neste formato:
 \`\`\`json
 {
   "training_plan": [
     {
       "date": "YYYY-MM-DD",
       "workouts": [
-        { "type": "Ride|Run|WeightTraining|Swim", "title": "Nome do treino", "desc": "script linha a linha" }
+        { "type": "Ride|Run|WeightTraining|Swim", "title": "Nome curto do treino", "desc": "script linha a linha aqui" }
       ]
     }
   ]
@@ -711,20 +756,22 @@ RESPONDA OBRIGATORIAMENTE APENAS em JSON válido, sem texto adicional, sem backt
 
     // ─── WORKOUTS UPLOAD ──────────────────────────────────────────────────────
     function renderPendingWorkouts() {
-        const card = document.getElementById('validation-card');
         const list = document.getElementById('pending-workouts-list');
-        if (!card || !list) return;
+        if (!list) return;
         list.innerHTML = '';
-        if (!pendingWorkoutsList || pendingWorkoutsList.length === 0) { card.classList.add('hidden'); return; }
+        if (!pendingWorkoutsList || pendingWorkoutsList.length === 0) {
+            toggleDrawer(false);
+            return;
+        }
         pendingWorkoutsList.forEach(w => {
             const borders = { Ride: 'border-l-accent', Run: 'border-l-green', WeightTraining: 'border-l-purple', Swim: 'border-l-orange' };
             const border = borders[w.type] || 'border-l-muted';
             const d = document.createElement('div');
             d.className = `bg-bg border border-border rounded-xl p-2.5 border-l-2 ${border} text-xs`;
-            d.innerHTML = `<div class="flex justify-between items-center font-bold mb-1.5"><span class="text-white">${w.date} — ${w.name}</span><span class="text-[8px] font-mono uppercase text-muted">${w.type}</span></div><pre class="text-[9px] text-slate-400 bg-surface/50 p-2 rounded-lg font-mono leading-relaxed overflow-x-auto whitespace-pre-wrap">${w.desc}</pre>`;
+            d.innerHTML = `<div class="flex justify-between items-center font-bold mb-1.5"><span class="text-white">${w.date} — ${w.name}</span><span class="text-[8px] font-mono uppercase text-muted">${w.type}</span></div><pre class="text-[9px] text-slate-400 bg-card p-2 rounded-lg font-mono leading-relaxed overflow-x-auto whitespace-pre-wrap">${w.desc}</pre>`;
             list.appendChild(d);
         });
-        card.classList.remove('hidden');
+        toggleDrawer(true);
     }
 
     async function clearWorkoutsForPeriod(start, end) {
@@ -766,6 +813,7 @@ RESPONDA OBRIGATORIAMENTE APENAS em JSON válido, sem texto adicional, sem backt
         }
         if (btn) { btn.disabled = false; btn.innerText = '✓ Aprovar e Enviar para o Garmin'; }
         if (ok > 0) {
+            toggleDrawer(false);
             switchTab('coach');
             appendMessage('coach', `🎯 ${ok} treino(s) enviados para o Garmin com sucesso! Agenda da semana atualizada.`);
             pendingWorkoutsList = [];
