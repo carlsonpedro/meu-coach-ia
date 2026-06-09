@@ -787,34 +787,46 @@ Perfil/Restrições: ${athleteBio || 'Não informado'}
                 throw new Error(`HTTP ${res.status} — ${body.substring(0, 120)}`);
             }
             const activities = await res.json();
-            console.log('[DEBUG] Activities count:', activities.length, activities.map(a => a.type));
+            console.log('[DEBUG] Activities count:', activities.length);
+            if (activities.length > 0) console.log('[DEBUG] First activity keys:', JSON.stringify(Object.keys(activities[0])));
+            if (activities.length > 0) console.log('[DEBUG] First activity sample:', JSON.stringify({
+                type: activities[0].type,
+                sport_type: activities[0].sport_type,
+                icu_sport_type: activities[0].icu_sport_type,
+                activity_type: activities[0].activity_type,
+                name: activities[0].name
+            }));
 
-            // Detecta tipo: qualquer coisa com "ride"/"cycling"/"bike" = bike; "run"/"trail" = run; resto ignora
-            const BIKE_TYPES = ['ride','virtualride','cycling','mountainbikeride','ebikeride','handcycle','velomobile','indoorcycling','indoorrowing'];
-            const RUN_TYPES  = ['run','virtualrun','trailrun','treadmill'];
+            // Intervals pode retornar o tipo em campos diferentes — testa todos
+            const getType = (a) => a.type || a.sport_type || a.icu_sport_type || a.activity_type || '';
+
+            // Detecta tipo: qualquer coisa com "ride"/"cycling"/"bike" = bike; "run"/"trail" = run
+            const BIKE_TYPES = ['ride','cycling','bike','velo','indoor'];
+            const RUN_TYPES  = ['run','trail','treadmill','jog'];
 
             const relevant = activities
                 .filter(a => {
-                    const t = (a.type || '').toLowerCase();
+                    const t = getType(a).toLowerCase();
                     return BIKE_TYPES.some(b => t.includes(b)) || RUN_TYPES.some(r => t.includes(r));
                 })
                 .sort((a, b) => new Date(b.start_date_local) - new Date(a.start_date_local))
                 .slice(0, 10);
 
             if (!relevant.length) {
-                const allTypes = [...new Set(activities.map(a => a.type))].join(', ') || 'nenhuma';
-                listEl.innerHTML = `<p class="text-[11px] text-muted text-center py-4">
-                    Nenhum treino de corrida ou bike encontrado nos últimos 21 dias.<br>
-                    <span class="text-[10px] opacity-60">Total retornado: ${activities.length} atividade(s)</span><br>
-                    <span class="text-[10px] opacity-60">Tipos: ${allTypes}</span>
-                </p>`;
+                const allTypes = [...new Set(activities.map(a => getType(a)))].filter(Boolean).join(', ') || 'campo type vazio/indefinido';
+                const sample = activities.length > 0 ? JSON.stringify(activities[0]).substring(0, 200) : '';
+                listEl.innerHTML = `<div class="text-[10px] text-muted text-center py-3 space-y-1">
+                    <p>Nenhum treino de corrida ou bike encontrado.</p>
+                    <p class="opacity-60">Total: ${activities.length} · Tipos: ${allTypes}</p>
+                    ${sample ? `<pre class="text-left bg-bg rounded p-2 mt-2 overflow-x-auto text-[8px] opacity-50 whitespace-pre-wrap">${sample}...</pre>` : ''}
+                </div>`;
                 return;
             }
 
             listEl.innerHTML = '';
             relevant.forEach(act => {
                 const date = act.start_date_local?.substring(0, 10) || '';
-                const typeLC = (act.type || '').toLowerCase();
+                const typeLC = getType(act).toLowerCase();
                 const isRide = BIKE_TYPES.some(b => typeLC.includes(b));
                 const icon = isRide ? '🚴' : '🏃';
                 const badgeClass = isRide ? 'badge-bike' : 'badge-run';
