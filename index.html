@@ -771,18 +771,23 @@ Perfil/Restrições: ${athleteBio || 'Não informado'}
         if (btn) btn.innerText = '⏳ Buscando...';
         if (listEl) listEl.innerHTML = '<p class="text-[11px] text-muted text-center py-4">Carregando...</p>';
 
+        // Intervals.icu Basic Auth: base64("API_KEY:api_key") — usuário é "API_KEY", senha é a api key
         const auth = { 'Authorization': `Basic ${btoa(`API_KEY:${intervalsKey}`)}` };
         const oldest = new Date(); oldest.setDate(oldest.getDate() - 21);
         const oldestStr = oldest.toISOString().split('T')[0];
         const newestStr = new Date().toISOString().split('T')[0];
 
         try {
-            const res = await fetch(
-                `https://intervals.icu/api/v1/athlete/${athleteId}/activities?oldest=${oldestStr}&newest=${newestStr}`,
-                { headers: auth }
-            );
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const url = `https://intervals.icu/api/v1/athlete/${athleteId}/activities?oldest=${oldestStr}&newest=${newestStr}`;
+            console.log('[DEBUG] Fetching activities:', url);
+            const res = await fetch(url, { headers: auth });
+            console.log('[DEBUG] Response status:', res.status);
+            if (!res.ok) {
+                const body = await res.text().catch(() => '');
+                throw new Error(`HTTP ${res.status} — ${body.substring(0, 120)}`);
+            }
             const activities = await res.json();
+            console.log('[DEBUG] Activities count:', activities.length, activities.map(a => a.type));
 
             // Detecta tipo: qualquer coisa com "ride"/"cycling"/"bike" = bike; "run"/"trail" = run; resto ignora
             const BIKE_TYPES = ['ride','virtualride','cycling','mountainbikeride','ebikeride','handcycle','velomobile','indoorcycling','indoorrowing'];
@@ -798,7 +803,11 @@ Perfil/Restrições: ${athleteBio || 'Não informado'}
 
             if (!relevant.length) {
                 const allTypes = [...new Set(activities.map(a => a.type))].join(', ') || 'nenhuma';
-                listEl.innerHTML = `<p class="text-[11px] text-muted text-center py-4">Nenhum treino de corrida ou bike encontrado nos últimos 21 dias.<br><span class="text-[10px] text-muted/60">Tipos encontrados: ${allTypes}</span></p>`;
+                listEl.innerHTML = `<p class="text-[11px] text-muted text-center py-4">
+                    Nenhum treino de corrida ou bike encontrado nos últimos 21 dias.<br>
+                    <span class="text-[10px] opacity-60">Total retornado: ${activities.length} atividade(s)</span><br>
+                    <span class="text-[10px] opacity-60">Tipos: ${allTypes}</span>
+                </p>`;
                 return;
             }
 
@@ -842,7 +851,8 @@ Perfil/Restrições: ${athleteBio || 'Não informado'}
                 listEl.appendChild(card);
             });
         } catch(e) {
-            if (listEl) listEl.innerHTML = `<p class="text-[11px] text-red text-center py-3">Erro: ${e.message}</p>`;
+            console.error('[DEBUG] fetchRecentActivities error:', e);
+            if (listEl) listEl.innerHTML = `<p class="text-[11px] text-red text-center py-3">Erro ao buscar atividades:<br><span class="opacity-70">${e.message}</span></p>`;
         } finally {
             if (btn) btn.innerText = '↻ Buscar do Intervals';
         }
