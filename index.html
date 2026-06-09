@@ -784,21 +784,29 @@ Perfil/Restrições: ${athleteBio || 'Não informado'}
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
             const activities = await res.json();
 
-            // Filtra só corrida e bike, ordena mais recente primeiro
+            // Detecta tipo: qualquer coisa com "ride"/"cycling"/"bike" = bike; "run"/"trail" = run; resto ignora
+            const BIKE_TYPES = ['ride','virtualride','cycling','mountainbikeride','ebikeride','handcycle','velomobile','indoorcycling','indoorrowing'];
+            const RUN_TYPES  = ['run','virtualrun','trailrun','treadmill'];
+
             const relevant = activities
-                .filter(a => ['Run','Ride','VirtualRide','TrailRun'].includes(a.type))
+                .filter(a => {
+                    const t = (a.type || '').toLowerCase();
+                    return BIKE_TYPES.some(b => t.includes(b)) || RUN_TYPES.some(r => t.includes(r));
+                })
                 .sort((a, b) => new Date(b.start_date_local) - new Date(a.start_date_local))
                 .slice(0, 10);
 
             if (!relevant.length) {
-                listEl.innerHTML = '<p class="text-[11px] text-muted text-center py-4">Nenhum treino de corrida ou bike encontrado nos últimos 21 dias.</p>';
+                const allTypes = [...new Set(activities.map(a => a.type))].join(', ') || 'nenhuma';
+                listEl.innerHTML = `<p class="text-[11px] text-muted text-center py-4">Nenhum treino de corrida ou bike encontrado nos últimos 21 dias.<br><span class="text-[10px] text-muted/60">Tipos encontrados: ${allTypes}</span></p>`;
                 return;
             }
 
             listEl.innerHTML = '';
             relevant.forEach(act => {
                 const date = act.start_date_local?.substring(0, 10) || '';
-                const isRide = act.type.includes('Ride');
+                const typeLC = (act.type || '').toLowerCase();
+                const isRide = BIKE_TYPES.some(b => typeLC.includes(b));
                 const icon = isRide ? '🚴' : '🏃';
                 const badgeClass = isRide ? 'badge-bike' : 'badge-run';
                 const sportLabel = isRide ? 'Bike' : 'Corrida';
@@ -859,7 +867,7 @@ Perfil/Restrições: ${athleteBio || 'Não informado'}
         const info = document.getElementById('selected-activity-info');
         if (!card || !info) return;
 
-        const isRide = act.type.includes('Ride');
+        const isRide = ['ride','virtualride','cycling','mountainbikeride','ebikeride','indoorcycling'].some(b => (act.type||'').toLowerCase().includes(b));
         const distKm = act.distance ? (act.distance / 1000).toFixed(2) + ' km' : '--';
         const duration = act.moving_time ? formatDuration(act.moving_time) : '--';
         const avgPace = (!isRide && act.moving_time && act.distance) ? formatPace(act.moving_time, act.distance) + '/km' : null;
@@ -907,7 +915,7 @@ Perfil/Restrições: ${athleteBio || 'Não informado'}
         let dataInput = '';
         if (selectedActivity) {
             const act = selectedActivity;
-            const isRide = act.type.includes('Ride');
+            const isRide = ['ride','virtualride','cycling','mountainbikeride','ebikeride','indoorcycling'].some(b => (act.type||'').toLowerCase().includes(b));
             const distKm = act.distance ? (act.distance / 1000).toFixed(2) : null;
             const pace = (!isRide && act.moving_time && act.distance) ? formatPace(act.moving_time, act.distance) : null;
             dataInput = [
