@@ -240,23 +240,53 @@
 
     <!-- SECTION: ANALYSIS -->
     <div id="section-analysis" class="section p-4 space-y-4 pb-8">
+
+        <!-- Activity Picker from Intervals -->
         <div class="bg-card border border-border rounded-2xl p-4 space-y-3">
             <div class="flex items-center justify-between">
-                <span class="text-[10px] font-mono uppercase text-muted tracking-wider">Analisar Treino Recente</span>
+                <span class="text-[10px] font-mono uppercase text-muted tracking-wider">Treinos Recentes</span>
+                <button onclick="fetchRecentActivities()" id="btn-fetch-activities" class="text-[9px] font-mono uppercase text-accent hover:opacity-70 transition-all">↻ Buscar do Intervals</button>
             </div>
-            <textarea id="workout-data-input" placeholder="Cole aqui os dados do treino (pace médio, FC média, FC máx, distância, sensação de esforço, cadência, potência...) ou descreva como se sentiu..." class="w-full bg-bg border border-border rounded-xl p-3 text-xs text-white focus:border-accent outline-none transition-all h-24 resize-none placeholder-muted"></textarea>
-            <div class="grid grid-cols-2 gap-2">
-                <button onclick="analyzeWorkout('run')" class="bg-bg border border-border text-green font-bold text-xs py-2.5 rounded-xl hover:border-green transition-all">🏃 Corrida</button>
-                <button onclick="analyzeWorkout('bike')" class="bg-bg border border-border text-accent font-bold text-xs py-2.5 rounded-xl hover:border-accent transition-all">🚴 Ciclismo</button>
+
+            <!-- Activity list -->
+            <div id="activities-list" class="space-y-2 max-h-64 overflow-y-auto">
+                <p class="text-[11px] text-muted text-center py-4">Toque em "Buscar do Intervals" para carregar seus treinos recentes.</p>
             </div>
         </div>
+
+        <!-- Selected activity preview -->
+        <div id="selected-activity-card" class="hidden bg-card border-2 border-accent/40 rounded-2xl p-4 space-y-3 slide-in">
+            <div class="flex items-center justify-between">
+                <span class="text-[10px] font-mono uppercase text-accent tracking-wider">Treino Selecionado</span>
+                <button onclick="clearSelectedActivity()" class="text-[10px] text-muted hover:text-red transition-colors">✕ limpar</button>
+            </div>
+            <div id="selected-activity-info" class="space-y-1"></div>
+            <div class="grid grid-cols-2 gap-2 pt-1">
+                <button onclick="analyzeWorkout('run')" class="bg-bg border border-green/40 text-green font-bold text-xs py-2.5 rounded-xl hover:border-green transition-all">🏃 Analisar Corrida</button>
+                <button onclick="analyzeWorkout('bike')" class="bg-bg border border-accent/40 text-accent font-bold text-xs py-2.5 rounded-xl hover:border-accent transition-all">🚴 Analisar Bike</button>
+            </div>
+        </div>
+
+        <!-- Manual fallback -->
+        <details class="bg-card border border-border rounded-2xl overflow-hidden">
+            <summary class="p-3 text-[10px] font-mono uppercase text-muted tracking-wider cursor-pointer select-none flex justify-between items-center hover:bg-surface/50 transition-all">
+                <span>✏️ Ou insira dados manualmente</span>
+                <span class="text-muted">▼</span>
+            </summary>
+            <div class="p-3 pt-0 space-y-2 border-t border-border">
+                <textarea id="workout-data-input" placeholder="Pace médio, FC, distância, sensação de esforço, potência, cadência..." class="w-full bg-bg border border-border rounded-xl p-3 text-xs text-white focus:border-accent outline-none transition-all h-20 resize-none placeholder-muted mt-2"></textarea>
+                <div class="grid grid-cols-2 gap-2">
+                    <button onclick="analyzeWorkout('run')" class="bg-bg border border-border text-green font-bold text-xs py-2.5 rounded-xl hover:border-green transition-all">🏃 Corrida</button>
+                    <button onclick="analyzeWorkout('bike')" class="bg-bg border border-border text-accent font-bold text-xs py-2.5 rounded-xl hover:border-accent transition-all">🚴 Ciclismo</button>
+                </div>
+            </div>
+        </details>
 
         <!-- Limiters Result -->
         <div id="limiters-card" class="hidden bg-card border border-border rounded-2xl p-4 space-y-4 slide-in">
             <span class="text-[10px] font-mono uppercase text-muted tracking-wider block">Diagnóstico de Limitantes</span>
             
             <div class="space-y-3">
-                <!-- Cardio -->
                 <div class="space-y-1.5">
                     <div class="flex justify-between items-center">
                         <div class="flex items-center gap-2">
@@ -270,8 +300,6 @@
                     </div>
                     <div class="limiter-bar"><div id="limiter-cardio-bar" class="limiter-fill bg-red" style="width:0%"></div></div>
                 </div>
-
-                <!-- VO2 -->
                 <div class="space-y-1.5">
                     <div class="flex justify-between items-center">
                         <div class="flex items-center gap-2">
@@ -285,8 +313,6 @@
                     </div>
                     <div class="limiter-bar"><div id="limiter-vo2-bar" class="limiter-fill bg-accent" style="width:0%"></div></div>
                 </div>
-
-                <!-- Lactato -->
                 <div class="space-y-1.5">
                     <div class="flex justify-between items-center">
                         <div class="flex items-center gap-2">
@@ -300,8 +326,6 @@
                     </div>
                     <div class="limiter-bar"><div id="limiter-lactato-bar" class="limiter-fill bg-orange" style="width:0%"></div></div>
                 </div>
-
-                <!-- Força Muscular -->
                 <div class="space-y-1.5">
                     <div class="flex justify-between items-center">
                         <div class="flex items-center gap-2">
@@ -317,20 +341,18 @@
                 </div>
             </div>
 
-            <!-- Main limiter highlight -->
             <div id="limiter-verdict" class="bg-bg border border-border rounded-xl p-3 space-y-1">
                 <span class="text-[9px] font-mono uppercase text-muted tracking-wider">Diagnóstico principal</span>
                 <p id="limiter-text" class="text-sm text-white leading-relaxed"></p>
             </div>
 
-            <!-- Recommended sessions -->
             <div id="limiter-recs" class="space-y-2">
                 <span class="text-[9px] font-mono uppercase text-muted tracking-wider block">Treinos recomendados</span>
                 <div id="limiter-recs-list" class="space-y-1.5"></div>
             </div>
         </div>
 
-        <div id="analysis-status" class="text-center text-[11px] font-mono text-muted"></div>
+        <div id="analysis-status" class="text-center text-[11px] font-mono text-muted py-2"></div>
     </div>
 
 </div> <!-- end max-w container -->
@@ -443,7 +465,8 @@
 
     function showAnalysisStatus(text, color) {
         const el = document.getElementById('analysis-status');
-        if (el) { el.innerText = text; el.style.color = color || '#4a6070'; }
+        if (!el) return;
+        el.innerText = text; el.style.color = color || '#4a6070';
     }
 
     function updateTSBDisplay(tsb) {
@@ -614,50 +637,61 @@ Sexta: ${diasSemana.sex}
 Sábado: ${diasSemana.sab}
 Domingo: ${diasSemana.dom}
 
-=== REGRA 1 — DIAS FIXOS DE FORÇA (OBRIGATÓRIO) ===
-- ${diasSemana.seg} (Segunda): type=WeightTraining, title="Força Kettlebells"
-  desc deve listar: Bloco 1 Upper (Turkish Get-up 3x5, KB Press 3x8, Renegade Row 3x6, Halo 3x8) e Bloco 2 Lower (Goblet Squat 4x10, KB Swing 4x15, Dead Clean 3x6, Step-up 3x10)
-- ${diasSemana.qua} (Quarta): type=WeightTraining, title="Força Halteres"
-  desc deve listar: Bloco 1 Upper (DB Press 3x10, DB Row 3x10, Fly 3x12, Curl 3x12) e Bloco 2 Lower (Split Squat 3x10, RDL 3x10, Hip Thrust 4x12, Step-up lateral 3x10)
+=== REGRA 1 — TREINOS FIXOS DE FORÇA (COPIE EXATAMENTE) ===
 
-=== REGRA 2 — INTENSIDADE (PROIBIDO usar FC, BPM ou HR) ===
-- Ciclismo (Ride): use % do FTP. Exemplo: "- 10m 70% text=Aquecimento"
-- Corrida (Run): use pace/km. Exemplo: "- 30m 5:30/km text=Rodagem Z2"
-- Obrigatório 1 sessão de bike com Over-Unders por semana:
-  3x
-  - 4m 95% text=Under FTP
-  - 2m 108% text=Over FTP
+SEGUNDA ${diasSemana.seg} — obrigatório incluir este treino no JSON:
+{
+  "date": "${diasSemana.seg}",
+  "workouts": [{
+    "type": "WeightTraining",
+    "title": "Força Kettlebells",
+    "desc": "🔷 BLOCO 1 — UPPER BODY COMPLEX (20min)\\nTurkish Get-up 3x5 cada lado\\nKB Press 3x8\\nRenegade Row 3x6 cada lado\\nHalo 3x8\\n\\n🔶 BLOCO 2 — LOWER BODY COMPLEX (20min)\\nGoblet Squat 4x10\\nKB Swing 4x15\\nDead Clean 3x6\\nStep-up 3x10 cada lado\\n\\n⏱ Descanso: 45s entre exercícios, 90s entre blocos"
+  }]
+}
+
+QUARTA ${diasSemana.qua} — obrigatório incluir este treino no JSON:
+{
+  "date": "${diasSemana.qua}",
+  "workouts": [{
+    "type": "WeightTraining",
+    "title": "Força Halteres",
+    "desc": "🔷 BLOCO 1 — UPPER BODY (20min)\\nDB Press 3x10\\nDB Row 3x10 cada lado\\nDB Fly 3x12\\nBicep Curl 3x12\\nTricep Extension 3x12\\n\\n🔶 BLOCO 2 — LOWER BODY (20min)\\nSplit Squat 3x10 cada lado\\nRDL 3x10\\nHip Thrust 4x12\\nStep-up lateral 3x10 cada lado\\n\\n⏱ Descanso: 45s entre exercícios, 90s entre blocos"
+  }]
+}
+
+=== REGRA 2 — INTENSIDADE DOS OUTROS TREINOS (PROIBIDO usar FC, BPM ou HR) ===
+- Ciclismo (Ride): potência em % do FTP. Formato: "- Xm YY% text=descrição"
+  Exemplo correto: "- 10m 70% text=Aquecimento\\n- 30m 80% text=Z2 constante\\n- 5m 55% text=Volta à calma"
+- Corrida (Run): pace por km. Formato: "- Xm X:XX/km text=descrição"
+  Exemplo correto: "- 10m 6:00/km text=Aquecimento\\n- 30m ${currentMetrics.runPace !== '--' ? currentMetrics.runPace : '5:30/km'} text=Ritmo Z2\\n- 5m 6:30/km text=Volta à calma"
+- Obrigatório 1 sessão Ride com Over-Unders por semana (preferencialmente terça ou quinta):
+  "- 10m 65% text=Aquecimento\\n3x\\n- 4m 95% text=Under FTP\\n- 2m 108% text=Over FTP\\n- 10m 65% text=Volta à calma"
 
 === REGRA 3 — DURAÇÃO MÁXIMA ===
-- Seg/Ter/Qua/Qui/Sex: Ride ≤ 50min, Run ≤ 45min
-- Sáb/Dom: até 90min (pode ser Brick: Ride + Run)
+- Seg/Ter/Qua/Qui/Sex: Ride ≤ 50min total, Run ≤ 45min total
+- Sáb/Dom: até 90min (pode ser Brick = Ride seguido de Run)
 
 === REGRA 4 — SEM NATAÇÃO ===
-Não inclua treinos de natação a menos que o atleta peça explicitamente.
+Não inclua natação a menos que o atleta peça explicitamente.
 
 === MÉTRICAS DO ATLETA ===
 FTP: ${currentMetrics.ftp} | Pace limiar: ${currentMetrics.runPace} | CTL: ${currentMetrics.ctl} | TSB: ${currentMetrics.tsb}
-${currentMetrics.tsb !== '--' && Number(currentMetrics.tsb) < -20 ? '⚠️ TSB muito baixo: reduza volume 30%, apenas Z1/Z2.' : ''}
-${currentMetrics.tsb !== '--' && Number(currentMetrics.tsb) > 5 ? '✅ TSB positivo: pode adicionar sessão extra de qualidade.' : ''}
-Perfil: ${athleteBio || 'Não informado'}
+${currentMetrics.tsb !== '--' && Number(currentMetrics.tsb) < -20 ? '⚠️ TSB muito baixo: só Z1/Z2, sem treinos de qualidade esta semana.' : ''}
+${currentMetrics.tsb !== '--' && Number(currentMetrics.tsb) > 5 ? '✅ TSB positivo: pode adicionar 1 treino extra de qualidade.' : ''}
+Perfil/Restrições: ${athleteBio || 'Não informado'}
 
-=== FORMATO DE SAÍDA OBRIGATÓRIO ===
-Responda em português. Primeiro explique brevemente a lógica da semana (2-3 linhas). Depois inclua o JSON abaixo.
+=== FORMATO DE SAÍDA ===
+1. Explique em 2-3 linhas a lógica da semana.
+2. Inclua o JSON completo com TODOS os dias de treino, incluindo obrigatoriamente Segunda e Quarta com os treinos de força acima.
+3. O JSON deve terminar a resposta, sem texto depois.
 
-O JSON deve vir EXATAMENTE assim, sem texto depois dele:
 \`\`\`json
 {
   "training_plan": [
-    {
-      "date": "YYYY-MM-DD",
-      "workouts": [
-        { "type": "Ride|Run|WeightTraining", "title": "titulo curto", "desc": "script aqui" }
-      ]
-    }
+    { "date": "YYYY-MM-DD", "workouts": [{ "type": "Ride|Run|WeightTraining", "title": "titulo", "desc": "script" }] }
   ]
 }
-\`\`\`
-Inclua SOMENTE os dias que têm treino. Não inclua dias de descanso no JSON.`;
+\`\`\``;
 
         showTyping();
         try {
@@ -687,6 +721,29 @@ Inclua SOMENTE os dias que têm treino. Não inclua dias de descanso no JSON.`;
                     } else if (Array.isArray(parsed)) {
                         flat = parsed.map(w => ({ date: w.date, type: w.type, name: w.name || w.title || 'Treino', desc: w.desc }));
                     }
+
+                    // ── FORÇA GARANTIDA: injeta/substitui segunda e quarta independente do modelo ──
+                    const forcaKB = {
+                        type: 'WeightTraining',
+                        name: 'Força Kettlebells',
+                        desc: '🔷 BLOCO 1 — UPPER BODY COMPLEX (20min)\nTurkish Get-up 3x5 cada lado\nKB Press 3x8\nRenegade Row 3x6 cada lado\nHalo 3x8\n\n🔶 BLOCO 2 — LOWER BODY COMPLEX (20min)\nGoblet Squat 4x10\nKB Swing 4x15\nDead Clean 3x6\nStep-up 3x10 cada lado\n\n⏱ Descanso: 45s entre exercícios, 90s entre blocos'
+                    };
+                    const forcaDB = {
+                        type: 'WeightTraining',
+                        name: 'Força Halteres',
+                        desc: '🔷 BLOCO 1 — UPPER BODY (20min)\nDB Press 3x10\nDB Row 3x10 cada lado\nDB Fly 3x12\nBicep Curl 3x12\nTricep Extension 3x12\n\n🔶 BLOCO 2 — LOWER BODY (20min)\nSplit Squat 3x10 cada lado\nRDL 3x10\nHip Thrust 4x12\nStep-up lateral 3x10 cada lado\n\n⏱ Descanso: 45s entre exercícios, 90s entre blocos'
+                    };
+
+                    // Remove qualquer WeightTraining que o modelo tenha colocado em dia errado
+                    flat = flat.filter(w => w.type !== 'WeightTraining');
+
+                    // Injeta força nos dias certos
+                    flat.push({ date: diasSemana.seg, ...forcaKB });
+                    flat.push({ date: diasSemana.qua, ...forcaDB });
+
+                    // Ordena por data
+                    flat.sort((a, b) => a.date.localeCompare(b.date));
+
                     if (flat.length > 0) { pendingWorkoutsList = flat; renderPendingWorkouts(); switchTab('coach'); }
                 } catch(e) { console.error('JSON parse error:', e); }
             }
@@ -700,12 +757,191 @@ Inclua SOMENTE os dias que têm treino. Não inclua dias de descanso no JSON.`;
     }
 
     // ─── WORKOUT ANALYSIS ─────────────────────────────────────────────────────
-    async function analyzeWorkout(sport) {
-        const dataInput = document.getElementById('workout-data-input').value.trim();
-        if (!dataInput) { showAnalysisStatus('Cole os dados do treino no campo acima.', '#ff9100'); return; }
+    let selectedActivity = null;
 
-        showAnalysisStatus('Analisando...', '#00e5ff');
-        document.getElementById('limiters-card').classList.add('hidden');
+    async function fetchRecentActivities() {
+        const athleteId = localStorage.getItem('athleteId');
+        const intervalsKey = localStorage.getItem('intervalsKey');
+        const listEl = document.getElementById('activities-list');
+        const btn = document.getElementById('btn-fetch-activities');
+        if (!athleteId || !intervalsKey) {
+            if (listEl) listEl.innerHTML = '<p class="text-[11px] text-orange text-center py-3">Configure o Athlete ID e API Key nas configurações.</p>';
+            return;
+        }
+        if (btn) btn.innerText = '⏳ Buscando...';
+        if (listEl) listEl.innerHTML = '<p class="text-[11px] text-muted text-center py-4">Carregando...</p>';
+
+        const auth = { 'Authorization': `Basic ${btoa(`API_KEY:${intervalsKey}`)}` };
+        const oldest = new Date(); oldest.setDate(oldest.getDate() - 21);
+        const oldestStr = oldest.toISOString().split('T')[0];
+        const newestStr = new Date().toISOString().split('T')[0];
+
+        try {
+            const res = await fetch(
+                `https://intervals.icu/api/v1/athlete/${athleteId}/activities?oldest=${oldestStr}&newest=${newestStr}`,
+                { headers: auth }
+            );
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const activities = await res.json();
+
+            // Filtra só corrida e bike, ordena mais recente primeiro
+            const relevant = activities
+                .filter(a => ['Run','Ride','VirtualRide','TrailRun'].includes(a.type))
+                .sort((a, b) => new Date(b.start_date_local) - new Date(a.start_date_local))
+                .slice(0, 10);
+
+            if (!relevant.length) {
+                listEl.innerHTML = '<p class="text-[11px] text-muted text-center py-4">Nenhum treino de corrida ou bike encontrado nos últimos 21 dias.</p>';
+                return;
+            }
+
+            listEl.innerHTML = '';
+            relevant.forEach(act => {
+                const date = act.start_date_local?.substring(0, 10) || '';
+                const isRide = act.type.includes('Ride');
+                const icon = isRide ? '🚴' : '🏃';
+                const badgeClass = isRide ? 'badge-bike' : 'badge-run';
+                const sportLabel = isRide ? 'Bike' : 'Corrida';
+
+                const distKm = act.distance ? (act.distance / 1000).toFixed(1) + ' km' : '--';
+                const duration = act.moving_time ? formatDuration(act.moving_time) : '--';
+                const load = act.icu_training_load ? `Carga ${Math.round(act.icu_training_load)}` : '';
+                const avgHr = act.average_heartrate ? `FC ${Math.round(act.average_heartrate)}bpm` : '';
+                const avgPower = act.average_watts ? `${Math.round(act.average_watts)}W` : '';
+                const avgPace = (!isRide && act.moving_time && act.distance)
+                    ? formatPace(act.moving_time, act.distance) + '/km' : '';
+
+                const card = document.createElement('button');
+                card.className = 'w-full text-left bg-bg border border-border rounded-xl p-3 hover:border-accent/60 active:scale-[0.98] transition-all space-y-1.5';
+                card.onclick = () => selectActivity(act);
+                card.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <span class="text-sm">${icon}</span>
+                            <span class="text-xs font-bold text-white">${act.name || sportLabel}</span>
+                        </div>
+                        <span class="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded-md ${badgeClass}">${sportLabel}</span>
+                    </div>
+                    <div class="flex gap-3 text-[10px] text-muted font-mono flex-wrap">
+                        <span>${date}</span>
+                        <span>${distKm}</span>
+                        <span>${duration}</span>
+                        ${load ? `<span class="text-orange">${load}</span>` : ''}
+                        ${avgHr ? `<span class="text-red">${avgHr}</span>` : ''}
+                        ${avgPower ? `<span class="text-accent">${avgPower}</span>` : ''}
+                        ${avgPace ? `<span class="text-green">${avgPace}</span>` : ''}
+                    </div>`;
+                listEl.appendChild(card);
+            });
+        } catch(e) {
+            if (listEl) listEl.innerHTML = `<p class="text-[11px] text-red text-center py-3">Erro: ${e.message}</p>`;
+        } finally {
+            if (btn) btn.innerText = '↻ Buscar do Intervals';
+        }
+    }
+
+    function formatDuration(seconds) {
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        return h > 0 ? `${h}h${m.toString().padStart(2,'0')}` : `${m}min`;
+    }
+
+    function formatPace(seconds, distanceMeters) {
+        const secPerKm = seconds / (distanceMeters / 1000);
+        const m = Math.floor(secPerKm / 60);
+        const s = Math.round(secPerKm % 60).toString().padStart(2, '0');
+        return `${m}:${s}`;
+    }
+
+    function selectActivity(act) {
+        selectedActivity = act;
+        const card = document.getElementById('selected-activity-card');
+        const info = document.getElementById('selected-activity-info');
+        if (!card || !info) return;
+
+        const isRide = act.type.includes('Ride');
+        const distKm = act.distance ? (act.distance / 1000).toFixed(2) + ' km' : '--';
+        const duration = act.moving_time ? formatDuration(act.moving_time) : '--';
+        const avgPace = (!isRide && act.moving_time && act.distance) ? formatPace(act.moving_time, act.distance) + '/km' : null;
+
+        const fields = [
+            ['Nome', act.name || '--'],
+            ['Data', act.start_date_local?.substring(0, 10) || '--'],
+            ['Distância', distKm],
+            ['Duração', duration],
+            avgPace ? ['Pace médio', avgPace] : null,
+            act.average_watts ? ['Potência média', act.average_watts + 'W'] : null,
+            act.normalized_power ? ['Potência normalizada (NP)', act.normalized_power + 'W'] : null,
+            act.average_heartrate ? ['FC média', Math.round(act.average_heartrate) + ' bpm'] : null,
+            act.max_heartrate ? ['FC máxima', Math.round(act.max_heartrate) + ' bpm'] : null,
+            act.average_cadence ? ['Cadência média', Math.round(act.average_cadence) + ' rpm'] : null,
+            act.icu_training_load ? ['Carga do treino', Math.round(act.icu_training_load)] : null,
+            act.suffer_score ? ['Suffer Score', act.suffer_score] : null,
+            act.icu_rpe ? ['RPE (esforço percebido)', act.icu_rpe + '/10'] : null,
+            act.total_elevation_gain ? ['Elevação', act.total_elevation_gain + 'm'] : null,
+        ].filter(Boolean);
+
+        info.innerHTML = fields.map(([label, val]) =>
+            `<div class="flex justify-between items-center py-0.5">
+                <span class="text-[10px] text-muted">${label}</span>
+                <span class="text-[11px] font-mono font-bold text-white">${val}</span>
+            </div>`
+        ).join('');
+
+        card.classList.remove('hidden');
+        card.scrollIntoView({ behavior: 'smooth' });
+    }
+
+    function clearSelectedActivity() {
+        selectedActivity = null;
+        const card = document.getElementById('selected-activity-card');
+        if (card) card.classList.add('hidden');
+        const limitersCard = document.getElementById('limiters-card');
+        if (limitersCard) limitersCard.classList.add('hidden');
+    }
+
+    async function analyzeWorkout(sport) {
+        switchTab('analysis');
+
+        // Monta os dados: usa atividade selecionada do Intervals ou input manual
+        let dataInput = '';
+        if (selectedActivity) {
+            const act = selectedActivity;
+            const isRide = act.type.includes('Ride');
+            const distKm = act.distance ? (act.distance / 1000).toFixed(2) : null;
+            const pace = (!isRide && act.moving_time && act.distance) ? formatPace(act.moving_time, act.distance) : null;
+            dataInput = [
+                `Nome: ${act.name || '--'}`,
+                `Tipo: ${isRide ? 'Ciclismo' : 'Corrida'}`,
+                `Data: ${act.start_date_local?.substring(0,10) || '--'}`,
+                distKm ? `Distância: ${distKm} km` : null,
+                act.moving_time ? `Duração: ${formatDuration(act.moving_time)}` : null,
+                pace ? `Pace médio: ${pace}/km` : null,
+                act.average_watts ? `Potência média: ${act.average_watts}W` : null,
+                act.normalized_power ? `Potência normalizada (NP): ${act.normalized_power}W` : null,
+                act.average_heartrate ? `FC média: ${Math.round(act.average_heartrate)} bpm` : null,
+                act.max_heartrate ? `FC máxima: ${Math.round(act.max_heartrate)} bpm` : null,
+                act.average_cadence ? `Cadência média: ${Math.round(act.average_cadence)} rpm` : null,
+                act.icu_training_load ? `Carga (Training Load): ${Math.round(act.icu_training_load)}` : null,
+                act.suffer_score ? `Suffer Score: ${act.suffer_score}` : null,
+                act.icu_rpe ? `RPE (esforço percebido): ${act.icu_rpe}/10` : null,
+                act.total_elevation_gain ? `Elevação total: ${act.total_elevation_gain}m` : null,
+            ].filter(Boolean).join('\n');
+            // Usa o tipo real da atividade para o prompt
+            sport = isRide ? 'bike' : 'run';
+        } else {
+            const manualEl = document.getElementById('workout-data-input');
+            dataInput = manualEl ? manualEl.value.trim() : '';
+        }
+
+        if (!dataInput) {
+            showAnalysisStatus('Selecione um treino da lista ou insira dados manualmente.', '#ff9100');
+            return;
+        }
+
+        showAnalysisStatus('⏳ Analisando com o treinador IA...', '#00e5ff');
+        const limitersCard = document.getElementById('limiters-card');
+        if (limitersCard) limitersCard.classList.add('hidden');
 
         const systemPrompt = `Você é um fisiologista do esporte especializado em triathlon. Analise os dados de treino fornecidos e determine os principais limitantes de performance do atleta.
 
@@ -744,26 +980,32 @@ RESPONDA OBRIGATORIAMENTE APENAS em JSON válido, sem texto adicional, sem backt
 
     function renderLimiters(result) {
         const card = document.getElementById('limiters-card');
-        const scores = result.scores;
+        if (!card) return;
+        const scores = result.scores || {};
         const keys = ['cardio', 'vo2', 'lactato', 'forca'];
         keys.forEach(k => {
             const pct = Math.min(100, Math.max(0, scores[k] || 0));
-            document.getElementById(`limiter-${k}-pct`).innerText = pct + '%';
-            setTimeout(() => { document.getElementById(`limiter-${k}-bar`).style.width = pct + '%'; }, 100);
+            const pctEl = document.getElementById(`limiter-${k}-pct`);
+            const barEl = document.getElementById(`limiter-${k}-bar`);
+            if (pctEl) pctEl.innerText = pct + '%';
+            if (barEl) setTimeout(() => { barEl.style.width = pct + '%'; }, 100);
         });
-        document.getElementById('limiter-text').innerText = result.diagnosis;
+        const textEl = document.getElementById('limiter-text');
+        if (textEl) textEl.innerText = result.diagnosis || '';
         const recsList = document.getElementById('limiter-recs-list');
-        recsList.innerHTML = '';
-        (result.recommendations || []).forEach(r => {
-            const types = { Ride: 'badge-bike', Run: 'badge-run', WeightTraining: 'badge-strength', Swim: 'badge-swim' };
-            const icons = { Ride: '🚴', Run: '🏃', WeightTraining: '💪', Swim: '🏊' };
-            const badgeClass = types[r.type] || 'badge-bike';
-            const icon = icons[r.type] || '🏋️';
-            const d = document.createElement('div');
-            d.className = 'bg-bg border border-border rounded-xl p-3 flex items-start gap-2.5';
-            d.innerHTML = `<span class="text-sm shrink-0">${icon}</span><div><p class="text-xs font-bold text-white">${r.title}</p><p class="text-[10px] text-muted mt-0.5">${r.focus}</p></div><span class="ml-auto text-[9px] px-1.5 py-0.5 rounded-md font-mono uppercase ${badgeClass}">${r.type}</span>`;
-            recsList.appendChild(d);
-        });
+        if (recsList) {
+            recsList.innerHTML = '';
+            (result.recommendations || []).forEach(r => {
+                const types = { Ride: 'badge-bike', Run: 'badge-run', WeightTraining: 'badge-strength', Swim: 'badge-swim' };
+                const icons = { Ride: '🚴', Run: '🏃', WeightTraining: '💪', Swim: '🏊' };
+                const badgeClass = types[r.type] || 'badge-bike';
+                const icon = icons[r.type] || '🏋️';
+                const d = document.createElement('div');
+                d.className = 'bg-bg border border-border rounded-xl p-3 flex items-start gap-2.5';
+                d.innerHTML = `<span class="text-sm shrink-0">${icon}</span><div><p class="text-xs font-bold text-white">${r.title}</p><p class="text-[10px] text-muted mt-0.5">${r.focus}</p></div><span class="ml-auto text-[9px] px-1.5 py-0.5 rounded-md font-mono uppercase ${badgeClass}">${r.type}</span>`;
+                recsList.appendChild(d);
+            });
+        }
         card.classList.remove('hidden');
         card.scrollIntoView({ behavior: 'smooth' });
     }
@@ -817,10 +1059,12 @@ RESPONDA OBRIGATORIAMENTE APENAS em JSON válido, sem texto adicional, sem backt
             const w = pendingWorkoutsList[i];
             if (btn) btn.innerText = `⏳ Enviando ${i + 1}/${pendingWorkoutsList.length}...`;
             const type = w.type === 'Strength' ? 'WeightTraining' : w.type;
+            // Normaliza quebras de linha: converte \\n literal (vindo do modelo) em \n real
+            const desc = (w.desc || '').replace(/\\n/g, '\n');
             try {
                 const res = await fetch(`https://intervals.icu/api/v1/athlete/${athleteId}/events`, {
                     method: 'POST', headers: auth,
-                    body: JSON.stringify({ category: 'WORKOUT', start_date_local: `${w.date}T06:00:00`, type, name: w.name, description: w.desc })
+                    body: JSON.stringify({ category: 'WORKOUT', start_date_local: `${w.date}T06:00:00`, type, name: w.name, description: desc })
                 });
                 if (res.ok) ok++;
             } catch(e) {}
