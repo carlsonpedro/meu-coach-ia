@@ -778,8 +778,9 @@ Perfil/Restrições: ${athleteBio || 'Não informado'}
         const newestStr = new Date().toISOString().split('T')[0];
 
         try {
-            const url = `https://intervals.icu/api/v1/athlete/${athleteId}/activities?oldest=${oldestStr}&newest=${newestStr}`;
-            console.log('[DEBUG] Fetching activities:', url);
+            // /activities bloqueia atividades do Strava — usamos /events que retorna tudo
+            const url = `https://intervals.icu/api/v1/athlete/${athleteId}/events?oldest=${oldestStr}&newest=${newestStr}&category=ACTIVITY`;
+            console.log('[DEBUG] Fetching events:', url);
             const res = await fetch(url, { headers: auth });
             console.log('[DEBUG] Response status:', res.status);
             if (!res.ok) {
@@ -787,13 +788,12 @@ Perfil/Restrições: ${athleteBio || 'Não informado'}
                 throw new Error(`HTTP ${res.status} — ${body.substring(0, 120)}`);
             }
             const activities = await res.json();
-            console.log('[DEBUG] Activities count:', activities.length);
-            if (activities.length > 0) console.log('[DEBUG] First activity keys:', JSON.stringify(Object.keys(activities[0])));
-            if (activities.length > 0) console.log('[DEBUG] First activity sample:', JSON.stringify({
+            console.log('[DEBUG] Events count:', activities.length);
+            if (activities.length > 0) console.log('[DEBUG] First event sample:', JSON.stringify({
                 type: activities[0].type,
                 sport_type: activities[0].sport_type,
                 icu_sport_type: activities[0].icu_sport_type,
-                activity_type: activities[0].activity_type,
+                category: activities[0].category,
                 name: activities[0].name
             }));
 
@@ -832,13 +832,19 @@ Perfil/Restrições: ${athleteBio || 'Não informado'}
                 const badgeClass = isRide ? 'badge-bike' : 'badge-run';
                 const sportLabel = isRide ? 'Bike' : 'Corrida';
 
-                const distKm = act.distance ? (act.distance / 1000).toFixed(1) + ' km' : '--';
-                const duration = act.moving_time ? formatDuration(act.moving_time) : '--';
-                const load = act.icu_training_load ? `Carga ${Math.round(act.icu_training_load)}` : '';
-                const avgHr = act.average_heartrate ? `FC ${Math.round(act.average_heartrate)}bpm` : '';
-                const avgPower = act.average_watts ? `${Math.round(act.average_watts)}W` : '';
-                const avgPace = (!isRide && act.moving_time && act.distance)
-                    ? formatPace(act.moving_time, act.distance) + '/km' : '';
+                // /events e /activities usam nomes de campo diferentes — normaliza ambos
+                const distM    = act.distance || act.icu_distance || 0;
+                const moveSec  = act.moving_time || act.elapsed_time || act.icu_elapsed_time || 0;
+                const hrAvg    = act.average_heartrate || act.icu_average_hr || 0;
+                const wAvg     = act.average_watts || act.icu_average_watts || act.icu_weighted_avg_watts || 0;
+                const tLoad    = act.icu_training_load || act.training_load || 0;
+
+                const distKm   = distM ? (distM / 1000).toFixed(1) + ' km' : '--';
+                const duration = moveSec ? formatDuration(moveSec) : '--';
+                const load     = tLoad ? `Carga ${Math.round(tLoad)}` : '';
+                const avgHr    = hrAvg ? `FC ${Math.round(hrAvg)}bpm` : '';
+                const avgPower = wAvg ? `${Math.round(wAvg)}W` : '';
+                const avgPace  = (!isRide && moveSec && distM) ? formatPace(moveSec, distM) + '/km' : '';
 
                 const card = document.createElement('button');
                 card.className = 'w-full text-left bg-bg border border-border rounded-xl p-3 hover:border-accent/60 active:scale-[0.98] transition-all space-y-1.5';
@@ -889,10 +895,22 @@ Perfil/Restrições: ${athleteBio || 'Não informado'}
         const info = document.getElementById('selected-activity-info');
         if (!card || !info) return;
 
-        const isRide = ['ride','virtualride','cycling','mountainbikeride','ebikeride','indoorcycling'].some(b => (act.type||'').toLowerCase().includes(b));
-        const distKm = act.distance ? (act.distance / 1000).toFixed(2) + ' km' : '--';
-        const duration = act.moving_time ? formatDuration(act.moving_time) : '--';
-        const avgPace = (!isRide && act.moving_time && act.distance) ? formatPace(act.moving_time, act.distance) + '/km' : null;
+        const isRide = ['ride','virtualride','cycling','mountainbikeride','ebikeride','indoorcycling'].some(b => (act.type||act.sport_type||act.icu_sport_type||'').toLowerCase().includes(b));
+        const distM   = act.distance || act.icu_distance || 0;
+        const moveSec = act.moving_time || act.elapsed_time || act.icu_elapsed_time || 0;
+        const hrAvg   = act.average_heartrate || act.icu_average_hr || 0;
+        const hrMax   = act.max_heartrate || act.icu_max_hr || 0;
+        const wAvg    = act.average_watts || act.icu_average_watts || 0;
+        const wNorm   = act.normalized_power || act.icu_weighted_avg_watts || 0;
+        const cadAvg  = act.average_cadence || act.icu_average_cadence || 0;
+        const tLoad   = act.icu_training_load || act.training_load || 0;
+        const elev    = act.total_elevation_gain || act.icu_elevation || 0;
+        const rpe     = act.icu_rpe || act.perceived_exertion || 0;
+        const suffer  = act.suffer_score || 0;
+
+        const distKm = distM ? (distM / 1000).toFixed(2) + ' km' : '--';
+        const duration = moveSec ? formatDuration(moveSec) : '--';
+        const avgPace = (!isRide && moveSec && distM) ? formatPace(moveSec, distM) + '/km' : null;
 
         const fields = [
             ['Nome', act.name || '--'],
@@ -900,15 +918,15 @@ Perfil/Restrições: ${athleteBio || 'Não informado'}
             ['Distância', distKm],
             ['Duração', duration],
             avgPace ? ['Pace médio', avgPace] : null,
-            act.average_watts ? ['Potência média', act.average_watts + 'W'] : null,
-            act.normalized_power ? ['Potência normalizada (NP)', act.normalized_power + 'W'] : null,
-            act.average_heartrate ? ['FC média', Math.round(act.average_heartrate) + ' bpm'] : null,
-            act.max_heartrate ? ['FC máxima', Math.round(act.max_heartrate) + ' bpm'] : null,
-            act.average_cadence ? ['Cadência média', Math.round(act.average_cadence) + ' rpm'] : null,
-            act.icu_training_load ? ['Carga do treino', Math.round(act.icu_training_load)] : null,
-            act.suffer_score ? ['Suffer Score', act.suffer_score] : null,
-            act.icu_rpe ? ['RPE (esforço percebido)', act.icu_rpe + '/10'] : null,
-            act.total_elevation_gain ? ['Elevação', act.total_elevation_gain + 'm'] : null,
+            wAvg    ? ['Potência média', wAvg + 'W'] : null,
+            wNorm   ? ['Potência normalizada (NP)', wNorm + 'W'] : null,
+            hrAvg   ? ['FC média', Math.round(hrAvg) + ' bpm'] : null,
+            hrMax   ? ['FC máxima', Math.round(hrMax) + ' bpm'] : null,
+            cadAvg  ? ['Cadência média', Math.round(cadAvg) + ' rpm'] : null,
+            tLoad   ? ['Carga do treino', Math.round(tLoad)] : null,
+            suffer  ? ['Suffer Score', suffer] : null,
+            rpe     ? ['RPE (esforço percebido)', rpe + '/10'] : null,
+            elev    ? ['Elevação', elev + 'm'] : null,
         ].filter(Boolean);
 
         info.innerHTML = fields.map(([label, val]) =>
@@ -937,25 +955,32 @@ Perfil/Restrições: ${athleteBio || 'Não informado'}
         let dataInput = '';
         if (selectedActivity) {
             const act = selectedActivity;
-            const isRide = ['ride','virtualride','cycling','mountainbikeride','ebikeride','indoorcycling'].some(b => (act.type||'').toLowerCase().includes(b));
-            const distKm = act.distance ? (act.distance / 1000).toFixed(2) : null;
-            const pace = (!isRide && act.moving_time && act.distance) ? formatPace(act.moving_time, act.distance) : null;
+            const isRide = ['ride','virtualride','cycling','mountainbikeride','ebikeride','indoorcycling'].some(b => (act.type||act.sport_type||act.icu_sport_type||'').toLowerCase().includes(b));
+            const distM   = act.distance || act.icu_distance || 0;
+            const moveSec = act.moving_time || act.elapsed_time || act.icu_elapsed_time || 0;
+            const hrAvg   = act.average_heartrate || act.icu_average_hr || 0;
+            const hrMax   = act.max_heartrate || act.icu_max_hr || 0;
+            const wAvg    = act.average_watts || act.icu_average_watts || 0;
+            const wNorm   = act.normalized_power || act.icu_weighted_avg_watts || 0;
+            const cadAvg  = act.average_cadence || act.icu_average_cadence || 0;
+            const tLoad   = act.icu_training_load || act.training_load || 0;
+            const pace    = (!isRide && moveSec && distM) ? formatPace(moveSec, distM) : null;
             dataInput = [
                 `Nome: ${act.name || '--'}`,
                 `Tipo: ${isRide ? 'Ciclismo' : 'Corrida'}`,
                 `Data: ${act.start_date_local?.substring(0,10) || '--'}`,
-                distKm ? `Distância: ${distKm} km` : null,
-                act.moving_time ? `Duração: ${formatDuration(act.moving_time)}` : null,
-                pace ? `Pace médio: ${pace}/km` : null,
-                act.average_watts ? `Potência média: ${act.average_watts}W` : null,
-                act.normalized_power ? `Potência normalizada (NP): ${act.normalized_power}W` : null,
-                act.average_heartrate ? `FC média: ${Math.round(act.average_heartrate)} bpm` : null,
-                act.max_heartrate ? `FC máxima: ${Math.round(act.max_heartrate)} bpm` : null,
-                act.average_cadence ? `Cadência média: ${Math.round(act.average_cadence)} rpm` : null,
-                act.icu_training_load ? `Carga (Training Load): ${Math.round(act.icu_training_load)}` : null,
+                distM   ? `Distância: ${(distM/1000).toFixed(2)} km` : null,
+                moveSec ? `Duração: ${formatDuration(moveSec)}` : null,
+                pace    ? `Pace médio: ${pace}/km` : null,
+                wAvg    ? `Potência média: ${wAvg}W` : null,
+                wNorm   ? `Potência normalizada (NP): ${wNorm}W` : null,
+                hrAvg   ? `FC média: ${Math.round(hrAvg)} bpm` : null,
+                hrMax   ? `FC máxima: ${Math.round(hrMax)} bpm` : null,
+                cadAvg  ? `Cadência média: ${Math.round(cadAvg)} rpm` : null,
+                tLoad   ? `Carga (Training Load): ${Math.round(tLoad)}` : null,
                 act.suffer_score ? `Suffer Score: ${act.suffer_score}` : null,
                 act.icu_rpe ? `RPE (esforço percebido): ${act.icu_rpe}/10` : null,
-                act.total_elevation_gain ? `Elevação total: ${act.total_elevation_gain}m` : null,
+                act.total_elevation_gain||act.icu_elevation ? `Elevação total: ${act.total_elevation_gain||act.icu_elevation}m` : null,
             ].filter(Boolean).join('\n');
             // Usa o tipo real da atividade para o prompt
             sport = isRide ? 'bike' : 'run';
