@@ -804,16 +804,30 @@ Perfil/Restrições: ${athleteBio || 'Não informado'}
             const BIKE_TYPES = ['ride','cycling','bike','velo','indoor'];
             const RUN_TYPES  = ['run','trail','treadmill','jog'];
 
-            const relevant = activities
+            // Filtra atividades do tipo correto — atividades concluídas têm icu_training_load ou start_date_local
+            // Não exigimos moving_time/distance pois eventos Strava podem ter esses campos em nomes diferentes
+            const allSportEvents = activities.filter(a => {
+                const t = getType(a).toLowerCase();
+                return BIKE_TYPES.some(b => t.includes(b)) || RUN_TYPES.some(r => t.includes(r));
+            });
+
+            console.log('[DEBUG] Sport events found:', allSportEvents.length);
+            allSportEvents.forEach(a => console.log('[DEBUG] event:', JSON.stringify({
+                name: a.name, type: a.type, icu_sport_type: a.icu_sport_type,
+                icu_training_load: a.icu_training_load, moving_time: a.moving_time,
+                elapsed_time: a.elapsed_time, icu_elapsed_time: a.icu_elapsed_time,
+                distance: a.distance, icu_distance: a.icu_distance,
+                start_date_local: a.start_date_local
+            })));
+
+            // Atividade concluída = tem carga de treino OU tem algum dado de tempo/distância
+            const relevant = allSportEvents
                 .filter(a => {
-                    // Só atividades concluídas têm tempo ou distância preenchidos
-                    const hasData = (a.moving_time || a.elapsed_time || a.icu_elapsed_time || a.distance || a.icu_distance);
-                    if (!hasData) return false;
-                    const t = getType(a).toLowerCase();
-                    return BIKE_TYPES.some(b => t.includes(b)) || RUN_TYPES.some(r => t.includes(r));
+                    return a.icu_training_load || a.moving_time || a.elapsed_time ||
+                           a.icu_elapsed_time || a.distance || a.icu_distance || a.icu_average_hr;
                 })
                 .sort((a, b) => new Date(b.start_date_local) - new Date(a.start_date_local))
-                .slice(0, 10);
+                .slice(0, 15);
 
             if (!relevant.length) {
                 const allTypes = [...new Set(activities.map(a => getType(a)))].filter(Boolean).join(', ') || 'campo type vazio/indefinido';
