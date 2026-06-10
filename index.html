@@ -759,6 +759,87 @@ Perfil/Restrições: ${athleteBio || 'Não informado'}
     // ─── WORKOUT ANALYSIS ─────────────────────────────────────────────────────
     let selectedActivity = null;
 
+    // Fallback para usuários Strava: wellness tem dados diários de atividade
+    async function fetchActivitiesFromWellness(athleteId, intervalsKey, auth, oldest, newest, listEl) {
+        try {
+            const res = await fetch(
+                `https://intervals.icu/api/v1/athlete/${athleteId}/wellness?oldest=${oldest}&newest=${newest}`,
+                { headers: auth }
+            );
+            if (!res.ok) throw new Error(`Wellness HTTP ${res.status}`);
+            const wellness = await res.json();
+            console.log('[DEBUG] Wellness days:', wellness.length);
+
+            // Filtra dias que têm atividade (tem moving_time ou distance preenchidos)
+            const BIKE_TYPES = ['ride','cycling','bike','velo'];
+            const RUN_TYPES  = ['run','trail','treadmill','jog'];
+
+            const days = wellness
+                .filter(d => d.moving_time || d.distance || d.training_load)
+                .sort((a, b) => new Date(b.id) - new Date(a.id))
+                .slice(0, 15);
+
+            console.log('[DEBUG] Wellness days with activity:', days.length);
+
+            if (!days.length) {
+                listEl.innerHTML = `<div class="space-y-2">
+                    <p class="text-[11px] text-orange text-center py-2">⚠️ Suas atividades vêm do Strava, que bloqueia acesso via API.</p>
+                    <p class="text-[10px] text-muted text-center">Use a opção manual abaixo: cole os dados do treino direto do Garmin Connect ou Strava.</p>
+                </div>`;
+                return;
+            }
+
+            listEl.innerHTML = '';
+            days.forEach(d => {
+                // Wellness não tem tipo por atividade — infere pelo contexto
+                const distM   = (d.distance || 0) * 1000; // wellness tem em km
+                const moveSec = d.moving_time || 0;
+                const hrAvg   = d.average_heartrate || d.avg_hr || 0;
+                const load    = d.training_load || d.icu_training_load || 0;
+                const distKm  = distM ? (distM / 1000).toFixed(1) + ' km' : '--';
+                const dur     = moveSec ? formatDuration(moveSec) : '--';
+
+                const card = document.createElement('button');
+                card.className = 'w-full text-left bg-bg border border-border rounded-xl p-3 hover:border-accent/60 active:scale-[0.98] transition-all space-y-1.5';
+                card.onclick = () => {
+                    // Monta objeto compatível com selectActivity
+                    selectActivity({
+                        name: `Treino ${d.id}`,
+                        type: 'Ride', // usuário escolhe ao clicar Analisar
+                        start_date_local: d.id + 'T00:00:00',
+                        distance: distM,
+                        moving_time: moveSec,
+                        average_heartrate: hrAvg,
+                        icu_training_load: load,
+                        _wellness: true
+                    });
+                };
+                card.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-white">📅 ${d.id}</span>
+                        <span class="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded-md bg-muted/20 text-muted">wellness</span>
+                    </div>
+                    <div class="flex gap-3 text-[10px] text-muted font-mono flex-wrap">
+                        <span>${distKm}</span>
+                        <span>${dur}</span>
+                        ${load ? `<span class="text-orange">Carga ${Math.round(load)}</span>` : ''}
+                        ${hrAvg ? `<span class="text-red">FC ${Math.round(hrAvg)}bpm</span>` : ''}
+                    </div>`;
+                listEl.appendChild(card);
+            });
+
+            // Aviso sobre limitação
+            const note = document.createElement('p');
+            note.className = 'text-[9px] text-muted text-center pt-1';
+            note.innerText = 'Dados do Strava são resumos diários. Para análise detalhada, use o campo manual.';
+            listEl.appendChild(note);
+
+        } catch(e) {
+            console.error('[DEBUG] Wellness fallback error:', e);
+            listEl.innerHTML = `<p class="text-[11px] text-red text-center py-3">Erro no fallback: ${e.message}</p>`;
+        }
+    }
+
     async function fetchRecentActivities() {
         const athleteId = localStorage.getItem('athleteId');
         const intervalsKey = localStorage.getItem('intervalsKey');
@@ -778,24 +859,38 @@ Perfil/Restrições: ${athleteBio || 'Não informado'}
         const newestStr = new Date().toISOString().split('T')[0];
 
         try {
-            // /activities bloqueia atividades do Strava — usamos /events que retorna tudo
-            const url = `https://intervals.icu/api/v1/athlete/${athleteId}/events?oldest=${oldestStr}&newest=${newestStr}`;
-            console.log('[DEBUG] Fetching events:', url);
+            // Tenta /activities primeiro (funciona para dados nativos do Intervals/Garmin/Wahoo)
+            // Para Strava, o Intervals bloqueia por contrato — usamos /activities com parâmetro expand
+            const url = `https://intervals.icu/api/v1/athlete/${athleteId}/activities?oldest=${oldestStr}&newest=${newestStr}&athleteId=${athleteId}`;
+            console.log('[DEBUG] Fetching:', url);
             const res = await fetch(url, { headers: auth });
-            console.log('[DEBUG] Response status:', res.status);
+            console.log('[DEBUG] Status:', res.status);
+
+            if (res.status === 403 || res.status === 401) {
+                throw new Error(`Sem permissão (${res.status}). Verifique o Athlete ID e API Key.`);
+            }
+
             if (!res.ok) {
                 const body = await res.text().catch(() => '');
                 throw new Error(`HTTP ${res.status} — ${body.substring(0, 120)}`);
             }
-            const activities = await res.json();
-            console.log('[DEBUG] Events count:', activities.length);
-            if (activities.length > 0) console.log('[DEBUG] First event sample:', JSON.stringify({
-                type: activities[0].type,
-                sport_type: activities[0].sport_type,
-                icu_sport_type: activities[0].icu_sport_type,
-                category: activities[0].category,
-                name: activities[0].name
-            }));
+
+            let activities = await res.json();
+            console.log('[DEBUG] Activities raw count:', activities.length);
+
+            // Se veio vazio ou com nota de Strava, tenta buscar via wellness que tem dados de cada dia
+            const hasStravaNotes = activities.some(a => a._note && a._note.includes('STRAVA'));
+            const realActivities = activities.filter(a => !a._note);
+
+            console.log('[DEBUG] Real activities (no _note):', realActivities.length);
+
+            if (realActivities.length === 0 && (hasStravaNotes || activities.length === 0)) {
+                // Fallback: monta lista a partir do wellness (tem resumo diário de atividades)
+                await fetchActivitiesFromWellness(athleteId, intervalsKey, auth, oldestStr, newestStr, listEl);
+                return;
+            }
+
+            activities = realActivities;
 
             // Intervals pode retornar o tipo em campos diferentes — testa todos
             const getType = (a) => a.type || a.sport_type || a.icu_sport_type || a.activity_type || '';
