@@ -779,7 +779,7 @@ Perfil/Restrições: ${athleteBio || 'Não informado'}
 
         try {
             // /activities bloqueia atividades do Strava — usamos /events que retorna tudo
-            const url = `https://intervals.icu/api/v1/athlete/${athleteId}/events?oldest=${oldestStr}&newest=${newestStr}&category=ACTIVITY`;
+            const url = `https://intervals.icu/api/v1/athlete/${athleteId}/events?oldest=${oldestStr}&newest=${newestStr}`;
             console.log('[DEBUG] Fetching events:', url);
             const res = await fetch(url, { headers: auth });
             console.log('[DEBUG] Response status:', res.status);
@@ -806,6 +806,9 @@ Perfil/Restrições: ${athleteBio || 'Não informado'}
 
             const relevant = activities
                 .filter(a => {
+                    // Só atividades concluídas têm tempo ou distância preenchidos
+                    const hasData = (a.moving_time || a.elapsed_time || a.icu_elapsed_time || a.distance || a.icu_distance);
+                    if (!hasData) return false;
                     const t = getType(a).toLowerCase();
                     return BIKE_TYPES.some(b => t.includes(b)) || RUN_TYPES.some(r => t.includes(r));
                 })
