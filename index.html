@@ -138,7 +138,9 @@
             </div>
         </div>
         <div>
-            <label class="text-[9px] uppercase font-bold text-muted tracking-wide block mb-1">Perfil / Restrições</label>
+            <label class="text-[9px] uppercase font-bold text-muted tracking-wide block mb-1">Strava Access Token <span class="text-muted normal-case">(para análise de treinos)</span></label>
+            <input type="password" id="strava-token" placeholder="Bearer token do Strava" class="w-full bg-card border border-border rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-accent outline-none transition-all">
+            <p class="text-[9px] text-muted mt-1">Obtenha em: <span class="text-accent">strava.com/settings/api</span> → "Your Access Token"</p>
             <textarea id="athlete-bio" placeholder="Ex: tendinite no joelho direito, sem piscina disponível seg/qua..." class="w-full bg-card border border-border rounded-xl px-3 py-2 text-xs text-white focus:border-accent outline-none transition-all h-14 resize-none"></textarea>
         </div>
         <button onclick="saveSettings()" class="w-full bg-green text-bg font-black text-xs uppercase tracking-widest py-2.5 rounded-xl hover:opacity-90 transition-all">
@@ -241,16 +243,14 @@
     <!-- SECTION: ANALYSIS -->
     <div id="section-analysis" class="section p-4 space-y-4 pb-8">
 
-        <!-- Activity Picker from Intervals -->
+        <!-- Activity Picker -->
         <div class="bg-card border border-border rounded-2xl p-4 space-y-3">
             <div class="flex items-center justify-between">
                 <span class="text-[10px] font-mono uppercase text-muted tracking-wider">Treinos Recentes</span>
-                <button onclick="fetchRecentActivities()" id="btn-fetch-activities" class="text-[9px] font-mono uppercase text-accent hover:opacity-70 transition-all">↻ Buscar do Intervals</button>
+                <button onclick="fetchRecentActivities()" id="btn-fetch-activities" class="text-[9px] font-mono uppercase text-accent hover:opacity-70 transition-all">↻ Buscar</button>
             </div>
-
-            <!-- Activity list -->
             <div id="activities-list" class="space-y-2 max-h-64 overflow-y-auto">
-                <p class="text-[11px] text-muted text-center py-4">Toque em "Buscar do Intervals" para carregar seus treinos recentes.</p>
+                <p class="text-[11px] text-muted text-center py-4">Toque em "Buscar" para carregar seus treinos recentes.</p>
             </div>
         </div>
 
@@ -759,232 +759,149 @@ Perfil/Restrições: ${athleteBio || 'Não informado'}
     // ─── WORKOUT ANALYSIS ─────────────────────────────────────────────────────
     let selectedActivity = null;
 
-    // Fallback para usuários Strava: wellness tem dados diários de atividade
-    async function fetchActivitiesFromWellness(athleteId, intervalsKey, auth, oldest, newest, listEl) {
-        try {
-            const res = await fetch(
-                `https://intervals.icu/api/v1/athlete/${athleteId}/wellness?oldest=${oldest}&newest=${newest}`,
-                { headers: auth }
-            );
-            if (!res.ok) throw new Error(`Wellness HTTP ${res.status}`);
-            const wellness = await res.json();
-            console.log('[DEBUG] Wellness days:', wellness.length);
-
-            // Filtra dias que têm atividade (tem moving_time ou distance preenchidos)
-            const BIKE_TYPES = ['ride','cycling','bike','velo'];
-            const RUN_TYPES  = ['run','trail','treadmill','jog'];
-
-            const days = wellness
-                .filter(d => d.moving_time || d.distance || d.training_load)
-                .sort((a, b) => new Date(b.id) - new Date(a.id))
-                .slice(0, 15);
-
-            console.log('[DEBUG] Wellness days with activity:', days.length);
-
-            if (!days.length) {
-                listEl.innerHTML = `<div class="space-y-2">
-                    <p class="text-[11px] text-orange text-center py-2">⚠️ Suas atividades vêm do Strava, que bloqueia acesso via API.</p>
-                    <p class="text-[10px] text-muted text-center">Use a opção manual abaixo: cole os dados do treino direto do Garmin Connect ou Strava.</p>
-                </div>`;
-                return;
-            }
-
-            listEl.innerHTML = '';
-            days.forEach(d => {
-                // Wellness não tem tipo por atividade — infere pelo contexto
-                const distM   = (d.distance || 0) * 1000; // wellness tem em km
-                const moveSec = d.moving_time || 0;
-                const hrAvg   = d.average_heartrate || d.avg_hr || 0;
-                const load    = d.training_load || d.icu_training_load || 0;
-                const distKm  = distM ? (distM / 1000).toFixed(1) + ' km' : '--';
-                const dur     = moveSec ? formatDuration(moveSec) : '--';
-
-                const card = document.createElement('button');
-                card.className = 'w-full text-left bg-bg border border-border rounded-xl p-3 hover:border-accent/60 active:scale-[0.98] transition-all space-y-1.5';
-                card.onclick = () => {
-                    // Monta objeto compatível com selectActivity
-                    selectActivity({
-                        name: `Treino ${d.id}`,
-                        type: 'Ride', // usuário escolhe ao clicar Analisar
-                        start_date_local: d.id + 'T00:00:00',
-                        distance: distM,
-                        moving_time: moveSec,
-                        average_heartrate: hrAvg,
-                        icu_training_load: load,
-                        _wellness: true
-                    });
-                };
-                card.innerHTML = `
-                    <div class="flex items-center justify-between">
-                        <span class="text-xs font-bold text-white">📅 ${d.id}</span>
-                        <span class="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded-md bg-muted/20 text-muted">wellness</span>
-                    </div>
-                    <div class="flex gap-3 text-[10px] text-muted font-mono flex-wrap">
-                        <span>${distKm}</span>
-                        <span>${dur}</span>
-                        ${load ? `<span class="text-orange">Carga ${Math.round(load)}</span>` : ''}
-                        ${hrAvg ? `<span class="text-red">FC ${Math.round(hrAvg)}bpm</span>` : ''}
-                    </div>`;
-                listEl.appendChild(card);
-            });
-
-            // Aviso sobre limitação
-            const note = document.createElement('p');
-            note.className = 'text-[9px] text-muted text-center pt-1';
-            note.innerText = 'Dados do Strava são resumos diários. Para análise detalhada, use o campo manual.';
-            listEl.appendChild(note);
-
-        } catch(e) {
-            console.error('[DEBUG] Wellness fallback error:', e);
-            listEl.innerHTML = `<p class="text-[11px] text-red text-center py-3">Erro no fallback: ${e.message}</p>`;
-        }
-    }
-
     async function fetchRecentActivities() {
-        const athleteId = localStorage.getItem('athleteId');
-        const intervalsKey = localStorage.getItem('intervalsKey');
         const listEl = document.getElementById('activities-list');
         const btn = document.getElementById('btn-fetch-activities');
-        if (!athleteId || !intervalsKey) {
-            if (listEl) listEl.innerHTML = '<p class="text-[11px] text-orange text-center py-3">Configure o Athlete ID e API Key nas configurações.</p>';
-            return;
-        }
-        if (btn) btn.innerText = '⏳ Buscando...';
         if (listEl) listEl.innerHTML = '<p class="text-[11px] text-muted text-center py-4">Carregando...</p>';
+        if (btn) btn.innerText = '⏳ Buscando...';
 
-        // Intervals.icu Basic Auth: base64("API_KEY:api_key") — usuário é "API_KEY", senha é a api key
-        const auth = { 'Authorization': `Basic ${btoa(`API_KEY:${intervalsKey}`)}` };
-        const oldest = new Date(); oldest.setDate(oldest.getDate() - 21);
-        const oldestStr = oldest.toISOString().split('T')[0];
-        const newestStr = new Date().toISOString().split('T')[0];
+        const stravaToken = localStorage.getItem('stravaToken');
+        if (stravaToken) {
+            await fetchFromStrava(stravaToken, listEl);
+        } else {
+            await fetchFromIntervals(listEl);
+        }
+        if (btn) btn.innerText = '↻ Buscar';
+    }
 
+    async function fetchFromStrava(token, listEl) {
         try {
-            // Tenta /activities primeiro (funciona para dados nativos do Intervals/Garmin/Wahoo)
-            // Para Strava, o Intervals bloqueia por contrato — usamos /activities com parâmetro expand
-            const url = `https://intervals.icu/api/v1/athlete/${athleteId}/activities?oldest=${oldestStr}&newest=${newestStr}&athleteId=${athleteId}`;
-            console.log('[DEBUG] Fetching:', url);
-            const res = await fetch(url, { headers: auth });
-            console.log('[DEBUG] Status:', res.status);
-
-            if (res.status === 403 || res.status === 401) {
-                throw new Error(`Sem permissão (${res.status}). Verifique o Athlete ID e API Key.`);
-            }
-
-            if (!res.ok) {
-                const body = await res.text().catch(() => '');
-                throw new Error(`HTTP ${res.status} — ${body.substring(0, 120)}`);
-            }
-
-            let activities = await res.json();
-            console.log('[DEBUG] Activities raw count:', activities.length);
-
-            // Se veio vazio ou com nota de Strava, tenta buscar via wellness que tem dados de cada dia
-            const hasStravaNotes = activities.some(a => a._note && a._note.includes('STRAVA'));
-            const realActivities = activities.filter(a => !a._note);
-
-            console.log('[DEBUG] Real activities (no _note):', realActivities.length);
-
-            if (realActivities.length === 0 && (hasStravaNotes || activities.length === 0)) {
-                // Fallback: monta lista a partir do wellness (tem resumo diário de atividades)
-                await fetchActivitiesFromWellness(athleteId, intervalsKey, auth, oldestStr, newestStr, listEl);
-                return;
-            }
-
-            activities = realActivities;
-
-            // Intervals pode retornar o tipo em campos diferentes — testa todos
-            const getType = (a) => a.type || a.sport_type || a.icu_sport_type || a.activity_type || '';
-
-            // Detecta tipo: qualquer coisa com "ride"/"cycling"/"bike" = bike; "run"/"trail" = run
-            const BIKE_TYPES = ['ride','cycling','bike','velo','indoor'];
-            const RUN_TYPES  = ['run','trail','treadmill','jog'];
-
-            // Filtra atividades do tipo correto — atividades concluídas têm icu_training_load ou start_date_local
-            // Não exigimos moving_time/distance pois eventos Strava podem ter esses campos em nomes diferentes
-            const allSportEvents = activities.filter(a => {
-                const t = getType(a).toLowerCase();
-                return BIKE_TYPES.some(b => t.includes(b)) || RUN_TYPES.some(r => t.includes(r));
-            });
-
-            console.log('[DEBUG] Sport events found:', allSportEvents.length);
-            allSportEvents.forEach(a => console.log('[DEBUG] event:', JSON.stringify({
-                name: a.name, type: a.type, icu_sport_type: a.icu_sport_type,
-                icu_training_load: a.icu_training_load, moving_time: a.moving_time,
-                elapsed_time: a.elapsed_time, icu_elapsed_time: a.icu_elapsed_time,
-                distance: a.distance, icu_distance: a.icu_distance,
-                start_date_local: a.start_date_local
-            })));
-
-            // Atividade concluída = tem carga de treino OU tem algum dado de tempo/distância
-            const relevant = allSportEvents
-                .filter(a => {
-                    return a.icu_training_load || a.moving_time || a.elapsed_time ||
-                           a.icu_elapsed_time || a.distance || a.icu_distance || a.icu_average_hr;
-                })
-                .sort((a, b) => new Date(b.start_date_local) - new Date(a.start_date_local))
-                .slice(0, 15);
-
-            if (!relevant.length) {
-                const allTypes = [...new Set(activities.map(a => getType(a)))].filter(Boolean).join(', ') || 'campo type vazio/indefinido';
-                const sample = activities.length > 0 ? JSON.stringify(activities[0]).substring(0, 200) : '';
-                listEl.innerHTML = `<div class="text-[10px] text-muted text-center py-3 space-y-1">
-                    <p>Nenhum treino de corrida ou bike encontrado.</p>
-                    <p class="opacity-60">Total: ${activities.length} · Tipos: ${allTypes}</p>
-                    ${sample ? `<pre class="text-left bg-bg rounded p-2 mt-2 overflow-x-auto text-[8px] opacity-50 whitespace-pre-wrap">${sample}...</pre>` : ''}
+            const after = Math.floor(Date.now() / 1000) - (21 * 86400);
+            const res = await fetch(
+                `https://www.strava.com/api/v3/athlete/activities?after=${after}&per_page=20`,
+                { headers: { 'Authorization': `Bearer ${token}` } }
+            );
+            if (res.status === 401) {
+                listEl.innerHTML = `<div class="py-3 space-y-2 text-center">
+                    <p class="text-[11px] text-orange">Token Strava expirado.</p>
+                    <p class="text-[10px] text-muted">Gere um novo em <span class="text-accent">strava.com/settings/api</span> e salve nas ⚙ configurações.</p>
                 </div>`;
                 return;
             }
+            if (!res.ok) throw new Error(`Strava HTTP ${res.status}`);
+            const activities = await res.json();
+            const BIKE = ['ride','cycling','ebikeride','virtualride','mountainbikeride'];
+            const RUN  = ['run','trailrun','virtualrun','treadmill'];
+            const relevant = activities.filter(a => {
+                const t = (a.type || a.sport_type || '').toLowerCase();
+                return BIKE.some(b => t.includes(b)) || RUN.some(r => t.includes(r));
+            }).slice(0, 15);
 
+            if (!relevant.length) {
+                listEl.innerHTML = '<p class="text-[11px] text-muted text-center py-4">Nenhum treino de bike ou corrida nos últimos 21 dias.</p>';
+                return;
+            }
             listEl.innerHTML = '';
             relevant.forEach(act => {
-                const date = act.start_date_local?.substring(0, 10) || '';
-                const typeLC = getType(act).toLowerCase();
-                const isRide = BIKE_TYPES.some(b => typeLC.includes(b));
+                const t = (act.type || act.sport_type || '').toLowerCase();
+                const isRide = BIKE.some(b => t.includes(b));
                 const icon = isRide ? '🚴' : '🏃';
-                const badgeClass = isRide ? 'badge-bike' : 'badge-run';
-                const sportLabel = isRide ? 'Bike' : 'Corrida';
-
-                // /events e /activities usam nomes de campo diferentes — normaliza ambos
-                const distM    = act.distance || act.icu_distance || 0;
-                const moveSec  = act.moving_time || act.elapsed_time || act.icu_elapsed_time || 0;
-                const hrAvg    = act.average_heartrate || act.icu_average_hr || 0;
-                const wAvg     = act.average_watts || act.icu_average_watts || act.icu_weighted_avg_watts || 0;
-                const tLoad    = act.icu_training_load || act.training_load || 0;
-
-                const distKm   = distM ? (distM / 1000).toFixed(1) + ' km' : '--';
-                const duration = moveSec ? formatDuration(moveSec) : '--';
-                const load     = tLoad ? `Carga ${Math.round(tLoad)}` : '';
-                const avgHr    = hrAvg ? `FC ${Math.round(hrAvg)}bpm` : '';
-                const avgPower = wAvg ? `${Math.round(wAvg)}W` : '';
-                const avgPace  = (!isRide && moveSec && distM) ? formatPace(moveSec, distM) + '/km' : '';
-
+                const badge = isRide ? 'badge-bike' : 'badge-run';
+                const label = isRide ? 'Bike' : 'Corrida';
+                const date = (act.start_date_local || '').substring(0, 10);
+                const distKm = act.distance ? (act.distance / 1000).toFixed(1) + ' km' : '--';
+                const dur = act.moving_time ? formatDuration(act.moving_time) : '--';
+                const hrAvg = act.average_heartrate ? `FC ${Math.round(act.average_heartrate)}bpm` : '';
+                const wAvg = act.average_watts ? `${Math.round(act.average_watts)}W` : '';
+                const pace = (!isRide && act.moving_time && act.distance) ? formatPace(act.moving_time, act.distance) + '/km' : '';
                 const card = document.createElement('button');
                 card.className = 'w-full text-left bg-bg border border-border rounded-xl p-3 hover:border-accent/60 active:scale-[0.98] transition-all space-y-1.5';
-                card.onclick = () => selectActivity(act);
+                card.onclick = () => selectActivity({ ...act, _source: 'strava' });
                 card.innerHTML = `
                     <div class="flex items-center justify-between">
                         <div class="flex items-center gap-2">
-                            <span class="text-sm">${icon}</span>
-                            <span class="text-xs font-bold text-white">${act.name || sportLabel}</span>
+                            <span>${icon}</span>
+                            <span class="text-xs font-bold text-white">${act.name || label}</span>
                         </div>
-                        <span class="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded-md ${badgeClass}">${sportLabel}</span>
+                        <span class="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded-md ${badge}">${label}</span>
                     </div>
                     <div class="flex gap-3 text-[10px] text-muted font-mono flex-wrap">
-                        <span>${date}</span>
-                        <span>${distKm}</span>
-                        <span>${duration}</span>
-                        ${load ? `<span class="text-orange">${load}</span>` : ''}
-                        ${avgHr ? `<span class="text-red">${avgHr}</span>` : ''}
-                        ${avgPower ? `<span class="text-accent">${avgPower}</span>` : ''}
-                        ${avgPace ? `<span class="text-green">${avgPace}</span>` : ''}
+                        <span>${date}</span><span>${distKm}</span><span>${dur}</span>
+                        ${hrAvg ? `<span class="text-red">${hrAvg}</span>` : ''}
+                        ${wAvg  ? `<span class="text-accent">${wAvg}</span>` : ''}
+                        ${pace  ? `<span class="text-green">${pace}</span>` : ''}
                     </div>`;
                 listEl.appendChild(card);
             });
         } catch(e) {
-            console.error('[DEBUG] fetchRecentActivities error:', e);
-            if (listEl) listEl.innerHTML = `<p class="text-[11px] text-red text-center py-3">Erro ao buscar atividades:<br><span class="opacity-70">${e.message}</span></p>`;
-        } finally {
-            if (btn) btn.innerText = '↻ Buscar do Intervals';
+            listEl.innerHTML = `<p class="text-[11px] text-red text-center py-3">Erro Strava: ${e.message}</p>`;
+        }
+    }
+
+    async function fetchFromIntervals(listEl) {
+        const athleteId = localStorage.getItem('athleteId');
+        const intervalsKey = localStorage.getItem('intervalsKey');
+        if (!athleteId || !intervalsKey) {
+            listEl.innerHTML = `<div class="py-3 space-y-2 text-center">
+                <p class="text-[11px] text-orange">Configure o Athlete ID e API Key nas ⚙ configurações.</p>
+                <p class="text-[10px] text-muted">Se seus treinos vêm do Strava, adicione também o Strava Token.</p>
+            </div>`;
+            return;
+        }
+        const auth = { 'Authorization': `Basic ${btoa('API_KEY:' + intervalsKey)}` };
+        const oldest = new Date(); oldest.setDate(oldest.getDate() - 21);
+        const oldestStr = oldest.toISOString().split('T')[0];
+        const newestStr = new Date().toISOString().split('T')[0];
+        try {
+            const res = await fetch(
+                `https://intervals.icu/api/v1/athlete/${athleteId}/activities?oldest=${oldestStr}&newest=${newestStr}`,
+                { headers: auth }
+            );
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const all = await res.json();
+            const real = all.filter(a => !a._note);
+            if (!real.length) {
+                listEl.innerHTML = `<div class="py-3 space-y-2 text-center">
+                    <p class="text-[11px] text-orange">⚠️ Seus treinos vêm do Strava — bloqueado pelo Intervals por contrato.</p>
+                    <p class="text-[10px] text-muted mt-1">Adicione o <strong class="text-white">Strava Token</strong> nas ⚙ configurações para buscar diretamente.</p>
+                    <p class="text-[10px] text-muted">Ou use o campo manual abaixo.</p>
+                </div>`;
+                return;
+            }
+            const BIKE = ['ride','cycling','bike','velo','indoor'];
+            const RUN  = ['run','trail','treadmill','jog'];
+            const getType = a => a.type || a.sport_type || a.icu_sport_type || '';
+            const relevant = real.filter(a => {
+                const t = getType(a).toLowerCase();
+                return BIKE.some(b => t.includes(b)) || RUN.some(r => t.includes(r));
+            }).sort((a,b) => new Date(b.start_date_local) - new Date(a.start_date_local)).slice(0,15);
+            if (!relevant.length) {
+                listEl.innerHTML = '<p class="text-[11px] text-muted text-center py-4">Nenhum treino encontrado.</p>';
+                return;
+            }
+            listEl.innerHTML = '';
+            relevant.forEach(act => {
+                const t = getType(act).toLowerCase();
+                const isRide = BIKE.some(b => t.includes(b));
+                const distM = act.distance || act.icu_distance || 0;
+                const moveSec = act.moving_time || act.elapsed_time || 0;
+                const card = document.createElement('button');
+                card.className = 'w-full text-left bg-bg border border-border rounded-xl p-3 hover:border-accent/60 transition-all space-y-1.5';
+                card.onclick = () => selectActivity(act);
+                card.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <span class="text-xs font-bold text-white">${isRide ? '🚴' : '🏃'} ${act.name || (isRide ? 'Bike' : 'Corrida')}</span>
+                        <span class="text-[9px] font-mono text-muted">${(act.start_date_local||'').substring(0,10)}</span>
+                    </div>
+                    <div class="flex gap-3 text-[10px] text-muted font-mono">
+                        <span>${distM ? (distM/1000).toFixed(1)+' km' : '--'}</span>
+                        <span>${moveSec ? formatDuration(moveSec) : '--'}</span>
+                        ${act.icu_training_load ? `<span class="text-orange">Carga ${Math.round(act.icu_training_load)}</span>` : ''}
+                    </div>`;
+                listEl.appendChild(card);
+            });
+        } catch(e) {
+            listEl.innerHTML = `<p class="text-[11px] text-red text-center py-3">Erro: ${e.message}</p>`;
         }
     }
 
@@ -1255,6 +1172,7 @@ RESPONDA OBRIGATORIAMENTE APENAS em JSON válido, sem texto adicional, sem backt
             ['athlete-id', 'athleteId'],
             ['intervals-key', 'intervalsKey'],
             ['claude-key', 'claudeKey'],
+            ['strava-token', 'stravaToken'],
             ['athlete-bio', 'athleteBio'],
             ['groq-model', 'groqModel']
         ];
@@ -1274,7 +1192,7 @@ RESPONDA OBRIGATORIAMENTE APENAS em JSON válido, sem texto adicional, sem backt
 
     // ─── INIT ─────────────────────────────────────────────────────────────────
     window.onload = function() {
-        const map = [['athlete-id','athleteId'],['intervals-key','intervalsKey'],['claude-key','claudeKey'],['athlete-bio','athleteBio'],['groq-model','groqModel']];
+        const map = [['athlete-id','athleteId'],['intervals-key','intervalsKey'],['claude-key','claudeKey'],['strava-token','stravaToken'],['athlete-bio','athleteBio'],['groq-model','groqModel']];
         map.forEach(([id, key]) => { const v = localStorage.getItem(key); const el = document.getElementById(id); if (v && el) el.value = v; });
         if (localStorage.getItem('athleteId') && localStorage.getItem('intervalsKey')) fetchIntervalsData();
     };
