@@ -138,9 +138,7 @@
             </div>
         </div>
         <div>
-            <label class="text-[9px] uppercase font-bold text-muted tracking-wide block mb-1">Strava Access Token <span class="text-muted normal-case">(para análise de treinos)</span></label>
-            <input type="password" id="strava-token" placeholder="Bearer token do Strava" class="w-full bg-card border border-border rounded-xl px-3 py-2 text-xs text-white font-mono focus:border-accent outline-none transition-all">
-            <p class="text-[9px] text-muted mt-1">Obtenha em: <span class="text-accent">strava.com/settings/api</span> → "Your Access Token"</p>
+            <label class="text-[9px] uppercase font-bold text-muted tracking-wide block mb-1">Perfil / Restrições</label>
             <textarea id="athlete-bio" placeholder="Ex: tendinite no joelho direito, sem piscina disponível seg/qua..." class="w-full bg-card border border-border rounded-xl px-3 py-2 text-xs text-white focus:border-accent outline-none transition-all h-14 resize-none"></textarea>
         </div>
         <button onclick="saveSettings()" class="w-full bg-green text-bg font-black text-xs uppercase tracking-widest py-2.5 rounded-xl hover:opacity-90 transition-all">
@@ -267,18 +265,58 @@
             </div>
         </div>
 
-        <!-- Manual fallback -->
+        <!-- Garmin Connect paste -->
         <details class="bg-card border border-border rounded-2xl overflow-hidden">
             <summary class="p-3 text-[10px] font-mono uppercase text-muted tracking-wider cursor-pointer select-none flex justify-between items-center hover:bg-surface/50 transition-all">
-                <span>✏️ Ou insira dados manualmente</span>
+                <span>⌚ Colar dados do Garmin Connect</span>
                 <span class="text-muted">▼</span>
             </summary>
             <div class="p-3 pt-0 space-y-2 border-t border-border">
-                <textarea id="workout-data-input" placeholder="Pace médio, FC, distância, sensação de esforço, potência, cadência..." class="w-full bg-bg border border-border rounded-xl p-3 text-xs text-white focus:border-accent outline-none transition-all h-20 resize-none placeholder-muted mt-2"></textarea>
+                <p class="text-[10px] text-muted mt-2">No Garmin Connect, abra o treino → anote os valores abaixo:</p>
                 <div class="grid grid-cols-2 gap-2">
-                    <button onclick="analyzeWorkout('run')" class="bg-bg border border-border text-green font-bold text-xs py-2.5 rounded-xl hover:border-green transition-all">🏃 Corrida</button>
-                    <button onclick="analyzeWorkout('bike')" class="bg-bg border border-border text-accent font-bold text-xs py-2.5 rounded-xl hover:border-accent transition-all">🚴 Ciclismo</button>
+                    <div>
+                        <label class="text-[9px] text-muted uppercase block mb-1">Tipo</label>
+                        <select id="garmin-type" class="w-full bg-bg border border-border rounded-lg px-2 py-1.5 text-xs text-white focus:border-accent outline-none">
+                            <option value="bike">🚴 Ciclismo</option>
+                            <option value="run">🏃 Corrida</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="text-[9px] text-muted uppercase block mb-1">Data</label>
+                        <input type="date" id="garmin-date" class="w-full bg-bg border border-border rounded-lg px-2 py-1.5 text-xs text-white focus:border-accent outline-none">
+                    </div>
+                    <div>
+                        <label class="text-[9px] text-muted uppercase block mb-1">Distância (km)</label>
+                        <input type="number" id="garmin-dist" placeholder="15.2" step="0.1" class="w-full bg-bg border border-border rounded-lg px-2 py-1.5 text-xs text-white focus:border-accent outline-none">
+                    </div>
+                    <div>
+                        <label class="text-[9px] text-muted uppercase block mb-1">Duração (min)</label>
+                        <input type="number" id="garmin-dur" placeholder="38" class="w-full bg-bg border border-border rounded-lg px-2 py-1.5 text-xs text-white focus:border-accent outline-none">
+                    </div>
+                    <div>
+                        <label class="text-[9px] text-muted uppercase block mb-1">FC Média (bpm)</label>
+                        <input type="number" id="garmin-hr" placeholder="140" class="w-full bg-bg border border-border rounded-lg px-2 py-1.5 text-xs text-white focus:border-accent outline-none">
+                    </div>
+                    <div>
+                        <label class="text-[9px] text-muted uppercase block mb-1">FC Máx (bpm)</label>
+                        <input type="number" id="garmin-hrmax" placeholder="168" class="w-full bg-bg border border-border rounded-lg px-2 py-1.5 text-xs text-white focus:border-accent outline-none">
+                    </div>
+                    <div>
+                        <label class="text-[9px] text-muted uppercase block mb-1">Potência média (W)</label>
+                        <input type="number" id="garmin-power" placeholder="132" class="w-full bg-bg border border-border rounded-lg px-2 py-1.5 text-xs text-white focus:border-accent outline-none">
+                    </div>
+                    <div>
+                        <label class="text-[9px] text-muted uppercase block mb-1">Cadência média</label>
+                        <input type="number" id="garmin-cad" placeholder="82" class="w-full bg-bg border border-border rounded-lg px-2 py-1.5 text-xs text-white focus:border-accent outline-none">
+                    </div>
                 </div>
+                <div>
+                    <label class="text-[9px] text-muted uppercase block mb-1">Como se sentiu (opcional)</label>
+                    <input type="text" id="garmin-feel" placeholder="Ex: pernas pesadas nos últimos 10min, respiração ok..." class="w-full bg-bg border border-border rounded-lg px-2 py-1.5 text-xs text-white focus:border-accent outline-none">
+                </div>
+                <button onclick="loadGarminData()" class="w-full bg-surface border border-accent/40 text-accent font-bold text-xs py-2 rounded-xl hover:border-accent transition-all mt-1">
+                    Carregar e Analisar →
+                </button>
             </div>
         </details>
 
@@ -764,145 +802,181 @@ Perfil/Restrições: ${athleteBio || 'Não informado'}
         const btn = document.getElementById('btn-fetch-activities');
         if (listEl) listEl.innerHTML = '<p class="text-[11px] text-muted text-center py-4">Carregando...</p>';
         if (btn) btn.innerText = '⏳ Buscando...';
-
-        const stravaToken = localStorage.getItem('stravaToken');
-        if (stravaToken) {
-            await fetchFromStrava(stravaToken, listEl);
-        } else {
-            await fetchFromIntervals(listEl);
-        }
+        await fetchFromIntervalsCsv(listEl);
         if (btn) btn.innerText = '↻ Buscar';
     }
 
-    async function fetchFromStrava(token, listEl) {
-        try {
-            const after = Math.floor(Date.now() / 1000) - (21 * 86400);
-            const res = await fetch(
-                `https://www.strava.com/api/v3/athlete/activities?after=${after}&per_page=20`,
-                { headers: { 'Authorization': `Bearer ${token}` } }
-            );
-            if (res.status === 401) {
-                listEl.innerHTML = `<div class="py-3 space-y-2 text-center">
-                    <p class="text-[11px] text-orange">Token Strava expirado.</p>
-                    <p class="text-[10px] text-muted">Gere um novo em <span class="text-accent">strava.com/settings/api</span> e salve nas ⚙ configurações.</p>
-                </div>`;
-                return;
-            }
-            if (!res.ok) throw new Error(`Strava HTTP ${res.status}`);
-            const activities = await res.json();
-            const BIKE = ['ride','cycling','ebikeride','virtualride','mountainbikeride'];
-            const RUN  = ['run','trailrun','virtualrun','treadmill'];
-            const relevant = activities.filter(a => {
-                const t = (a.type || a.sport_type || '').toLowerCase();
-                return BIKE.some(b => t.includes(b)) || RUN.some(r => t.includes(r));
-            }).slice(0, 15);
-
-            if (!relevant.length) {
-                listEl.innerHTML = '<p class="text-[11px] text-muted text-center py-4">Nenhum treino de bike ou corrida nos últimos 21 dias.</p>';
-                return;
-            }
-            listEl.innerHTML = '';
-            relevant.forEach(act => {
-                const t = (act.type || act.sport_type || '').toLowerCase();
-                const isRide = BIKE.some(b => t.includes(b));
-                const icon = isRide ? '🚴' : '🏃';
-                const badge = isRide ? 'badge-bike' : 'badge-run';
-                const label = isRide ? 'Bike' : 'Corrida';
-                const date = (act.start_date_local || '').substring(0, 10);
-                const distKm = act.distance ? (act.distance / 1000).toFixed(1) + ' km' : '--';
-                const dur = act.moving_time ? formatDuration(act.moving_time) : '--';
-                const hrAvg = act.average_heartrate ? `FC ${Math.round(act.average_heartrate)}bpm` : '';
-                const wAvg = act.average_watts ? `${Math.round(act.average_watts)}W` : '';
-                const pace = (!isRide && act.moving_time && act.distance) ? formatPace(act.moving_time, act.distance) + '/km' : '';
-                const card = document.createElement('button');
-                card.className = 'w-full text-left bg-bg border border-border rounded-xl p-3 hover:border-accent/60 active:scale-[0.98] transition-all space-y-1.5';
-                card.onclick = () => selectActivity({ ...act, _source: 'strava' });
-                card.innerHTML = `
-                    <div class="flex items-center justify-between">
-                        <div class="flex items-center gap-2">
-                            <span>${icon}</span>
-                            <span class="text-xs font-bold text-white">${act.name || label}</span>
-                        </div>
-                        <span class="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded-md ${badge}">${label}</span>
-                    </div>
-                    <div class="flex gap-3 text-[10px] text-muted font-mono flex-wrap">
-                        <span>${date}</span><span>${distKm}</span><span>${dur}</span>
-                        ${hrAvg ? `<span class="text-red">${hrAvg}</span>` : ''}
-                        ${wAvg  ? `<span class="text-accent">${wAvg}</span>` : ''}
-                        ${pace  ? `<span class="text-green">${pace}</span>` : ''}
-                    </div>`;
-                listEl.appendChild(card);
-            });
-        } catch(e) {
-            listEl.innerHTML = `<p class="text-[11px] text-red text-center py-3">Erro Strava: ${e.message}</p>`;
-        }
-    }
-
-    async function fetchFromIntervals(listEl) {
+    async function fetchFromIntervalsCsv(listEl) {
         const athleteId = localStorage.getItem('athleteId');
         const intervalsKey = localStorage.getItem('intervalsKey');
         if (!athleteId || !intervalsKey) {
-            listEl.innerHTML = `<div class="py-3 space-y-2 text-center">
-                <p class="text-[11px] text-orange">Configure o Athlete ID e API Key nas ⚙ configurações.</p>
-                <p class="text-[10px] text-muted">Se seus treinos vêm do Strava, adicione também o Strava Token.</p>
-            </div>`;
+            listEl.innerHTML = `<p class="text-[11px] text-orange text-center py-3">Configure o Athlete ID e API Key nas ⚙ configurações.</p>`;
             return;
         }
         const auth = { 'Authorization': `Basic ${btoa('API_KEY:' + intervalsKey)}` };
-        const oldest = new Date(); oldest.setDate(oldest.getDate() - 21);
+        const oldest = new Date(); oldest.setDate(oldest.getDate() - 30);
         const oldestStr = oldest.toISOString().split('T')[0];
         const newestStr = new Date().toISOString().split('T')[0];
+
         try {
+            // CSV endpoint — não é bloqueado pelo Strava, retorna dados do Intervals diretamente
             const res = await fetch(
-                `https://intervals.icu/api/v1/athlete/${athleteId}/activities?oldest=${oldestStr}&newest=${newestStr}`,
+                `https://intervals.icu/api/v1/athlete/${athleteId}/activities.csv?oldest=${oldestStr}&newest=${newestStr}`,
                 { headers: auth }
             );
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            const all = await res.json();
-            const real = all.filter(a => !a._note);
-            if (!real.length) {
-                listEl.innerHTML = `<div class="py-3 space-y-2 text-center">
-                    <p class="text-[11px] text-orange">⚠️ Seus treinos vêm do Strava — bloqueado pelo Intervals por contrato.</p>
-                    <p class="text-[10px] text-muted mt-1">Adicione o <strong class="text-white">Strava Token</strong> nas ⚙ configurações para buscar diretamente.</p>
-                    <p class="text-[10px] text-muted">Ou use o campo manual abaixo.</p>
+            const csv = await res.text();
+            const activities = parseCsv(csv);
+            console.log('[CSV] Total rows:', activities.length);
+            if (activities.length > 0) console.log('[CSV] Columns:', Object.keys(activities[0]).join(', '));
+
+            const BIKE = ['ride','cycling','bike','velo','indoor'];
+            const RUN  = ['run','trail','treadmill','jog'];
+            const getType = a => a.type || a.Type || a.sport_type || a.sport || '';
+
+            const relevant = activities
+                .filter(a => {
+                    const t = getType(a).toLowerCase();
+                    return BIKE.some(b => t.includes(b)) || RUN.some(r => t.includes(r));
+                })
+                .sort((a, b) => new Date(b.start_date_local || b.date || b.Date) - new Date(a.start_date_local || a.date || a.Date))
+                .slice(0, 15);
+
+            if (!relevant.length) {
+                // Mostra as colunas disponíveis para debug
+                const types = [...new Set(activities.map(a => getType(a)))].filter(Boolean).join(', ') || 'vazio';
+                listEl.innerHTML = `<div class="text-center py-3 space-y-1">
+                    <p class="text-[11px] text-orange">Nenhum treino de bike/corrida encontrado.</p>
+                    <p class="text-[10px] text-muted">Tipos encontrados: ${types}</p>
+                    <p class="text-[10px] text-muted">Use o formulário Garmin abaixo para inserir manualmente.</p>
                 </div>`;
                 return;
             }
-            const BIKE = ['ride','cycling','bike','velo','indoor'];
-            const RUN  = ['run','trail','treadmill','jog'];
-            const getType = a => a.type || a.sport_type || a.icu_sport_type || '';
-            const relevant = real.filter(a => {
-                const t = getType(a).toLowerCase();
-                return BIKE.some(b => t.includes(b)) || RUN.some(r => t.includes(r));
-            }).sort((a,b) => new Date(b.start_date_local) - new Date(a.start_date_local)).slice(0,15);
-            if (!relevant.length) {
-                listEl.innerHTML = '<p class="text-[11px] text-muted text-center py-4">Nenhum treino encontrado.</p>';
-                return;
-            }
+
             listEl.innerHTML = '';
             relevant.forEach(act => {
                 const t = getType(act).toLowerCase();
                 const isRide = BIKE.some(b => t.includes(b));
-                const distM = act.distance || act.icu_distance || 0;
-                const moveSec = act.moving_time || act.elapsed_time || 0;
+                const icon = isRide ? '🚴' : '🏃';
+                const badge = isRide ? 'badge-bike' : 'badge-run';
+                const label = isRide ? 'Bike' : 'Corrida';
+
+                // CSV pode ter nomes de coluna variados
+                const name = act.name || act.Name || act.activity_name || label;
+                const date = (act.start_date_local || act.date || act.Date || '').substring(0, 10);
+                const distRaw = parseFloat(act.distance || act.Distance || act.icu_distance || 0);
+                const distKm = distRaw > 0 ? (distRaw > 100 ? (distRaw/1000).toFixed(1) : distRaw.toFixed(1)) + ' km' : '--';
+                const moveSec = parseInt(act.moving_time || act.elapsed_time || act.duration || 0);
+                const dur = moveSec > 0 ? formatDuration(moveSec) : '--';
+                const load = parseFloat(act.icu_training_load || act.training_load || act.load || 0);
+                const hr = parseFloat(act.average_heartrate || act.avg_hr || act.hr || 0);
+                const power = parseFloat(act.average_watts || act.avg_power || act.power || 0);
+
                 const card = document.createElement('button');
-                card.className = 'w-full text-left bg-bg border border-border rounded-xl p-3 hover:border-accent/60 transition-all space-y-1.5';
-                card.onclick = () => selectActivity(act);
+                card.className = 'w-full text-left bg-bg border border-border rounded-xl p-3 hover:border-accent/60 active:scale-[0.98] transition-all space-y-1.5';
+                card.onclick = () => selectActivityFromCsv(act, isRide);
                 card.innerHTML = `
                     <div class="flex items-center justify-between">
-                        <span class="text-xs font-bold text-white">${isRide ? '🚴' : '🏃'} ${act.name || (isRide ? 'Bike' : 'Corrida')}</span>
-                        <span class="text-[9px] font-mono text-muted">${(act.start_date_local||'').substring(0,10)}</span>
+                        <div class="flex items-center gap-2">
+                            <span>${icon}</span>
+                            <span class="text-xs font-bold text-white">${name}</span>
+                        </div>
+                        <span class="text-[9px] font-mono uppercase px-1.5 py-0.5 rounded-md ${badge}">${label}</span>
                     </div>
-                    <div class="flex gap-3 text-[10px] text-muted font-mono">
-                        <span>${distM ? (distM/1000).toFixed(1)+' km' : '--'}</span>
-                        <span>${moveSec ? formatDuration(moveSec) : '--'}</span>
-                        ${act.icu_training_load ? `<span class="text-orange">Carga ${Math.round(act.icu_training_load)}</span>` : ''}
+                    <div class="flex gap-3 text-[10px] text-muted font-mono flex-wrap">
+                        <span>${date}</span>
+                        <span>${distKm}</span>
+                        <span>${dur}</span>
+                        ${load > 0 ? `<span class="text-orange">Carga ${Math.round(load)}</span>` : ''}
+                        ${hr > 0 ? `<span class="text-red">FC ${Math.round(hr)}bpm</span>` : ''}
+                        ${power > 0 ? `<span class="text-accent">${Math.round(power)}W</span>` : ''}
                     </div>`;
                 listEl.appendChild(card);
             });
+
         } catch(e) {
-            listEl.innerHTML = `<p class="text-[11px] text-red text-center py-3">Erro: ${e.message}</p>`;
+            console.error('[CSV fetch]', e);
+            listEl.innerHTML = `<div class="text-center py-3 space-y-2">
+                <p class="text-[11px] text-red">Erro: ${e.message}</p>
+                <p class="text-[10px] text-muted">Use o formulário Garmin abaixo para inserir os dados manualmente.</p>
+            </div>`;
         }
+    }
+
+    // Parser CSV simples — primeira linha são os headers
+    function parseCsv(text) {
+        const lines = text.trim().split('\n');
+        if (lines.length < 2) return [];
+        const headers = lines[0].split(',').map(h => h.trim().replace(/"/g,''));
+        return lines.slice(1).map(line => {
+            // Lida com campos entre aspas que contêm vírgulas
+            const vals = [];
+            let cur = '', inQ = false;
+            for (const c of line) {
+                if (c === '"') { inQ = !inQ; }
+                else if (c === ',' && !inQ) { vals.push(cur.trim()); cur = ''; }
+                else { cur += c; }
+            }
+            vals.push(cur.trim());
+            return Object.fromEntries(headers.map((h, i) => [h, vals[i] || '']));
+        });
+    }
+
+    function selectActivityFromCsv(act, isRide) {
+        // Normaliza campos do CSV para o formato esperado por selectActivity
+        const distRaw = parseFloat(act.distance || act.Distance || act.icu_distance || 0);
+        const normalized = {
+            name: act.name || act.Name || act.activity_name || (isRide ? 'Bike' : 'Corrida'),
+            type: isRide ? 'Ride' : 'Run',
+            start_date_local: act.start_date_local || act.date || act.Date || '',
+            distance: distRaw > 100 ? distRaw : distRaw * 1000, // normaliza para metros
+            moving_time: parseInt(act.moving_time || act.elapsed_time || act.duration || 0),
+            average_heartrate: parseFloat(act.average_heartrate || act.avg_hr || 0),
+            max_heartrate: parseFloat(act.max_heartrate || act.max_hr || 0),
+            average_watts: parseFloat(act.average_watts || act.avg_power || 0),
+            normalized_power: parseFloat(act.normalized_power || act.np || 0),
+            average_cadence: parseFloat(act.average_cadence || act.avg_cadence || 0),
+            icu_training_load: parseFloat(act.icu_training_load || act.training_load || act.load || 0),
+            total_elevation_gain: parseFloat(act.total_elevation_gain || act.elevation || 0),
+            _source: 'csv'
+        };
+        selectActivity(normalized);
+    }
+
+    // Carrega dados inseridos manualmente via formulário Garmin
+    function loadGarminData() {
+        const type = document.getElementById('garmin-type')?.value || 'bike';
+        const isRide = type === 'bike';
+        const date = document.getElementById('garmin-date')?.value || new Date().toISOString().split('T')[0];
+        const distKm = parseFloat(document.getElementById('garmin-dist')?.value || 0);
+        const durMin = parseFloat(document.getElementById('garmin-dur')?.value || 0);
+        const hr = parseFloat(document.getElementById('garmin-hr')?.value || 0);
+        const hrMax = parseFloat(document.getElementById('garmin-hrmax')?.value || 0);
+        const power = parseFloat(document.getElementById('garmin-power')?.value || 0);
+        const cad = parseFloat(document.getElementById('garmin-cad')?.value || 0);
+        const feel = document.getElementById('garmin-feel')?.value || '';
+
+        if (!distKm && !durMin) {
+            showAnalysisStatus('Preencha ao menos distância ou duração.', '#ff9100');
+            return;
+        }
+
+        const act = {
+            name: `${isRide ? 'Bike' : 'Corrida'} ${date}`,
+            type: isRide ? 'Ride' : 'Run',
+            start_date_local: date + 'T00:00:00',
+            distance: distKm * 1000,
+            moving_time: durMin * 60,
+            average_heartrate: hr,
+            max_heartrate: hrMax,
+            average_watts: power,
+            average_cadence: cad,
+            _feel: feel,
+            _source: 'garmin_manual'
+        };
+        selectActivity(act);
+        // Scroll para o card selecionado
+        document.getElementById('selected-activity-card')?.scrollIntoView({ behavior: 'smooth' });
     }
 
     function formatDuration(seconds) {
@@ -1010,6 +1084,7 @@ Perfil/Restrições: ${athleteBio || 'Não informado'}
                 act.suffer_score ? `Suffer Score: ${act.suffer_score}` : null,
                 act.icu_rpe ? `RPE (esforço percebido): ${act.icu_rpe}/10` : null,
                 act.total_elevation_gain||act.icu_elevation ? `Elevação total: ${act.total_elevation_gain||act.icu_elevation}m` : null,
+                act._feel ? `Sensação durante o treino: ${act._feel}` : null,
             ].filter(Boolean).join('\n');
             // Usa o tipo real da atividade para o prompt
             sport = isRide ? 'bike' : 'run';
