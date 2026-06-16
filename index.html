@@ -387,6 +387,9 @@
             <div id="limiter-recs" class="space-y-2">
                 <span class="text-[9px] font-mono uppercase text-muted tracking-wider block">Treinos recomendados</span>
                 <div id="limiter-recs-list" class="space-y-1.5"></div>
+                <button onclick="sendRecommendationsToGarmin()" class="w-full bg-accent/10 border border-accent/40 text-accent font-bold text-xs py-2.5 rounded-xl hover:bg-accent/20 transition-all mt-1">
+                    📤 Enviar Recomendações para o Garmin
+                </button>
             </div>
         </div>
 
@@ -426,6 +429,7 @@
     let pendingWorkoutsList = [];
     let evolutionChartInstance = null;
     let settingsOpen = false;
+    let latestAnalysisResult = null;
 
     // ─── TABS ─────────────────────────────────────────────────────────────────
     function switchTab(tab) {
@@ -1118,9 +1122,12 @@ RESPONDA OBRIGATORIAMENTE APENAS em JSON válido, sem texto adicional, sem backt
   "main_limiter": "CARDIO|VO2|LACTATO|FORCA",
   "diagnosis": "Diagnóstico em 2-3 frases explicando o que os dados indicam e por quê esse é o limitante principal.",
   "recommendations": [
-    { "type": "Ride|Run|WeightTraining", "title": "Nome do treino", "focus": "1 frase descrevendo o objetivo" },
-    { "type": "...", "title": "...", "focus": "..." },
-    { "type": "...", "title": "...", "focus": "..." }
+    {
+      "type": "Ride|Run|WeightTraining",
+      "title": "Nome do treino",
+      "focus": "1 frase descrevendo o objetivo",
+      "desc": "script do treino no formato Intervals.icu, ex: '- 10m 65% text=Aquecimento\\n3x\\n- 4m 95% text=Under FTP\\n- 2m 108% text=Over FTP\\n- 10m 65% text=Volta a calma'. Para Run use pace/km (ex: '- 30m 5:30/km text=Ritmo Z2'). Para WeightTraining liste exercícios separados por \\n. NUNCA use FC/BPM/HR."
+    }
   ]
 }`;
 
@@ -1130,6 +1137,7 @@ RESPONDA OBRIGATORIAMENTE APENAS em JSON válido, sem texto adicional, sem backt
             const reply = await callClaude(systemPrompt, userMsg);
             const clean = reply.replace(/```json|```/g, '').trim();
             const result = JSON.parse(clean);
+            latestAnalysisResult = result;
             renderLimiters(result);
             showAnalysisStatus('', '');
         } catch(e) {
@@ -1169,7 +1177,58 @@ RESPONDA OBRIGATORIAMENTE APENAS em JSON válido, sem texto adicional, sem backt
         card.scrollIntoView({ behavior: 'smooth' });
     }
 
-    // ─── WORKOUTS UPLOAD ──────────────────────────────────────────────────────
+    // ─── ENVIAR RECOMENDAÇÕES PARA O GARMIN ──────────────────────────────────
+    function sendRecommendationsToGarmin() {
+        if (!latestAnalysisResult || !latestAnalysisResult.recommendations || !latestAnalysisResult.recommendations.length) {
+            showAnalysisStatus('Nenhuma recomendação disponível para enviar.', '#ff9100');
+            return;
+        }
+
+        const recs = latestAnalysisResult.recommendations;
+
+        // Calcula próximos dias disponíveis a partir de hoje, evitando segunda/quarta (força fixa)
+        const today = new Date();
+        const availableDates = [];
+        let d = new Date(today);
+        d.setDate(d.getDate() + 1); // começa amanhã
+        while (availableDates.length < recs.length + 2) {
+            const dow = d.getDay(); // 0=dom, 1=seg, 3=qua
+            // Pula segunda(1) e quarta(3) — dias fixos de força
+            const dateStr = d.toISOString().split('T')[0];
+            availableDates.push({ date: dateStr, dow });
+            d.setDate(d.getDate() + 1);
+        }
+
+        // Distribui as recomendações nos dias disponíveis, pulando seg/qua quando o tipo não é WeightTraining
+        let dateIdx = 0;
+        const newWorkouts = recs.map(rec => {
+            // Acha o próximo dia válido
+            while (
+                dateIdx < availableDates.length &&
+                (availableDates[dateIdx].dow === 1 || availableDates[dateIdx].dow === 3) &&
+                rec.type !== 'WeightTraining'
+            ) {
+                dateIdx++;
+            }
+            const chosen = availableDates[dateIdx] || availableDates[availableDates.length - 1];
+            dateIdx++;
+
+            return {
+                date: chosen.date,
+                type: rec.type,
+                name: rec.title,
+                desc: (rec.desc || rec.focus || '').replace(/\\n/g, '\n')
+            };
+        });
+
+        // Adiciona aos pendentes (sem remover os que já estavam, caso existam)
+        pendingWorkoutsList = [...pendingWorkoutsList, ...newWorkouts]
+            .sort((a, b) => a.date.localeCompare(b.date));
+
+        renderPendingWorkouts();
+        switchTab('coach');
+        showAnalysisStatus('', '');
+    }
     function renderPendingWorkouts() {
         const list = document.getElementById('pending-workouts-list');
         if (!list) return;
